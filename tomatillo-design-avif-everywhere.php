@@ -90,14 +90,6 @@ function tomatillo_enqueue_avif_swap_script() {
 
 
 
-// helper to check the setting from my settings page
-// if ( ! function_exists( 'tomatillo_avif_is_enabled' ) ) {
-//     function tomatillo_avif_is_enabled() {
-//         return (bool) get_option('tomatillo_design_avif_everywhere_enable', 1);
-//     }
-// }
-
-
 
 // Add a "Settings" link under the plugin name on the Plugins page
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), function($links) {
@@ -403,53 +395,6 @@ CSS;
 
 
 
-// function tomatillo_design_avif_everywhere_admin_js() {
-//     return <<<JS
-// document.addEventListener('DOMContentLoaded', function() {
-//     console.log("tomatillo_design_avif_everywhere_admin_js 752");
-//     const observer = new MutationObserver(mutations => {
-//         mutations.forEach(mutation => {
-//             mutation.addedNodes.forEach(node => {
-//                 if (node.nodeType === 1 && node.classList.contains('attachment')) {
-//                     const img = node.querySelector('img');
-//                     if (img) {
-//                         const originalSrc = img.getAttribute('src');
-//                         if (originalSrc && /\.(jpe?g|png)$/i.test(originalSrc)) {
-
-//                             const testAvif = (srcToTry, onSuccess, onFail) => {
-//                                 const probe = new Image();
-//                                 probe.onload = () => onSuccess(srcToTry);
-//                                 probe.onerror = () => onFail();
-//                                 probe.src = srcToTry;
-//                             };
-
-//                             const baseAvif = originalSrc.replace(/\.(jpe?g|png)$/i, '.avif');
-//                             const fallbackAvif = baseAvif.replace(/-\\d+x\\d+\\.avif$/i, '.avif');
-
-//                             testAvif(baseAvif, function(successUrl) {
-//                                 img.src = successUrl;
-//                             }, function() {
-//                                 if (baseAvif !== fallbackAvif) {
-//                                     testAvif(fallbackAvif, function(successUrl) {
-//                                         img.src = successUrl;
-//                                     }, function() {
-//                                         // final fallback = do nothing, leave original JPG/PNG
-//                                     });
-//                                 }
-//                             });
-//                         }
-//                     }
-//                 }
-//             });
-//         });
-//     });
-
-//     const container = document.querySelector('.attachments') || document.body;
-//     observer.observe(container, { childList: true, subtree: true });
-// });
-// JS;
-// }
-
 
 add_action('wp_ajax_tomatillo_check_avif_exists', function () {
     if (empty($_GET['url'])) {
@@ -466,84 +411,6 @@ add_action('wp_ajax_tomatillo_check_avif_exists', function () {
         wp_send_json_error();
     }
 });
-
-
-
-// function tomatillo_design_avif_everywhere_admin_js() {
-//     return <<<JS
-// document.addEventListener('DOMContentLoaded', function () {
-    
-//     console.log("tomatillo_design_avif_everywhere_admin_js 830");
-
-//     const avifCheckCache = {};
-//     const avifCheckQueue = [];
-//     let activeRequests = 0;
-//     const MAX_CONCURRENT = 4;
-
-//     const processQueue = () => {
-//         if (activeRequests >= MAX_CONCURRENT || avifCheckQueue.length === 0) return;
-
-//         const { img, baseAvif, fallbackAvif } = avifCheckQueue.shift();
-//         activeRequests++;
-
-//         const tryUrl = async (url) => {
-//             if (avifCheckCache[url] !== undefined) return avifCheckCache[url];
-
-//             try {
-//                 const res = await fetch(ajaxurl + '?action=tomatillo_check_avif_exists&url=' + encodeURIComponent(url));
-//                 const data = await res.json();
-//                 avifCheckCache[url] = data.success === true;
-//                 return avifCheckCache[url];
-//             } catch (err) {
-//                 avifCheckCache[url] = false;
-//                 return false;
-//             }
-//         };
-
-//         const tryReplace = async () => {
-//             if (await tryUrl(baseAvif)) {
-//                 img.src = baseAvif;
-//             } else if (fallbackAvif && fallbackAvif !== baseAvif && await tryUrl(fallbackAvif)) {
-//                 img.src = fallbackAvif;
-//             }
-//             activeRequests--;
-//             setTimeout(processQueue, 50); // small spacing between batches
-//         };
-
-//         tryReplace();
-//     };
-
-//     const enqueueCheck = (img) => {
-//         const originalSrc = img.getAttribute('src');
-//         if (!originalSrc || !/\.(jpe?g|png)$/i.test(originalSrc)) return;
-
-//         const baseAvif = originalSrc.replace(/\.(jpe?g|png)$/i, '.avif');
-//         const hasSizeSuffix = /-\d+x\d+\.avif$/.test(baseAvif);
-//         const fallbackAvif = hasSizeSuffix
-//             ? baseAvif.replace(/-\d+x\d+\.avif$/, '.avif')
-//             : null;
-
-//         avifCheckQueue.push({ img, baseAvif, fallbackAvif });
-//         processQueue();
-//     };
-
-//     const observer = new MutationObserver(mutations => {
-//         mutations.forEach(mutation => {
-//             mutation.addedNodes.forEach(node => {
-//                 if (node.nodeType === 1 && node.classList.contains('attachment')) {
-//                     const img = node.querySelector('img');
-//                     if (img) enqueueCheck(img);
-//                 }
-//             });
-//         });
-//     });
-
-//     const container = document.querySelector('.attachments') || document.body;
-//     observer.observe(container, { childList: true, subtree: true });
-// });
-
-// JS;
-// }
 
 
 
@@ -641,3 +508,52 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 JS;
 }
+
+
+
+
+add_action( 'admin_footer-plugins.php', function() {
+	
+    $plugin_basename = plugin_basename( __FILE__ );
+    $plugin_basename = plugin_basename( __FILE__ );
+    $plugin_file = basename( $plugin_basename, '.php' );
+
+?>
+
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+	const linkId = 'deactivate-<?php echo esc_js( $plugin_file ); ?>';
+	console.log('[AVIF-SWAP] Looking for link with id:', linkId);
+
+	const link = document.getElementById(linkId);
+	if (!link) {
+		console.warn('[AVIF-SWAP] Deactivate link NOT FOUND with id:', linkId);
+		return;
+	}
+
+	console.log('[AVIF-SWAP] Deactivate link FOUND:', link);
+
+	link.addEventListener('click', function (e) {
+		const msg = `== When You Deactivate or Delete ==
+
+Disabling or deleting the plugin will:
+- Stop automatic AVIF generation for new uploads
+- Revert the Media Library and modal views to their default JPEG/PNG appearance
+
+However, any .avif files already generated by the plugin WILL remain on your server. They are safe to leave in place, but if desired, you may manually remove them from the /wp-content/uploads/ directory.
+
+Are you sure you want to deactivate this plugin?`;
+
+		if (!window.confirm(msg)) {
+			e.preventDefault();
+			console.log('[AVIF-SWAP] Deactivation cancelled.');
+		} else {
+			console.log('[AVIF-SWAP] Deactivation confirmed.');
+		}
+	});
+});
+</script>
+	<?php
+});
+
+

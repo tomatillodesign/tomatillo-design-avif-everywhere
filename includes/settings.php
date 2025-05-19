@@ -283,6 +283,13 @@ function tomatillo_design_avif_everywhere_render_settings_page() {
 
 
     <?php
+
+
+    // ✅ Insert diagnostics block directly in content
+	tomatillo_render_avif_server_diagnostics();
+
+
+
 }
 
 
@@ -306,4 +313,43 @@ function tomatillo_design_avif_everywhere_max_size_field_render() {
     <input type="number" name="tomatillo_design_avif_everywhere_max_size_mb" value="<?php echo esc_attr($option_mb); ?>" min="0" step="0.1" style="width: 100px;">
     <p class="description">Optional. Max AVIF file size in MB. (e.g., 1.0 = 1MB)</p>
     <?php
+}
+
+
+
+function tomatillo_render_avif_server_diagnostics() {
+	$imagick_loaded    = extension_loaded( 'imagick' );
+	$imagick_class     = class_exists( 'Imagick' );
+	$imagick_formats   = $imagick_class ? ( new Imagick() )->queryFormats() : [];
+	$avif_supported    = in_array( 'AVIF', $imagick_formats, true );
+
+	$gd_loaded         = extension_loaded( 'gd' );
+	$gd_info           = $gd_loaded ? gd_info() : [];
+	$gd_avif_supported = isset( $gd_info['AVIF Support'] ) && $gd_info['AVIF Support'];
+
+	$upload_dir        = wp_upload_dir();
+	$upload_writable   = is_writable( $upload_dir['basedir'] );
+
+	echo '<div id="avif-hud" style="
+		background:#f8f9fa;
+		border:1px solid #ccd0d4;
+		padding:1em;
+		margin-top:2em;
+		font-family:monospace;
+		font-size:14px;
+		line-height:1.5;
+		border-radius:4px;
+		max-width:600px;
+	">
+		<h2 style="margin-top:0">🛠 AVIF Server Compatibility</h2>
+		<ul style="padding-left:1.2em;margin:0">
+			<li>Imagick extension loaded: <strong style="color:'.($imagick_loaded ? '#0073aa' : '#d63638').'">'.($imagick_loaded ? 'Yes' : 'No').'</strong></li>
+			<li>Imagick class available: <strong style="color:'.($imagick_class ? '#0073aa' : '#d63638').'">'.($imagick_class ? 'Yes' : 'No').'</strong></li>
+			<li>Imagick AVIF support: <strong style="color:'.($avif_supported ? '#0073aa' : '#d63638').'">'.($avif_supported ? 'Yes' : 'No').'</strong></li>
+			<li>GD extension loaded: <strong style="color:'.($gd_loaded ? '#0073aa' : '#d63638').'">'.($gd_loaded ? 'Yes' : 'No').'</strong></li>
+			<li>GD AVIF support: <strong style="color:'.($gd_avif_supported ? '#0073aa' : '#d63638').'">'.($gd_avif_supported ? 'Yes' : 'No').'</strong></li>
+			<li>Uploads writable: <strong style="color:'.($upload_writable ? '#0073aa' : '#d63638').'">'.($upload_writable ? 'Yes' : 'No').'</strong></li>
+			<li>Uploads path: <code>'.esc_html( $upload_dir['basedir'] ).'</code></li>
+		</ul>
+	</div>';
 }
