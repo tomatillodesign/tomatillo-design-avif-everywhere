@@ -1,198 +1,120 @@
 <?php
 // Exit if accessed directly
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 /**
- * Tomatillo Design AVIF Everywhere - Frontend and Block Editor Handling
+ * Tomatillo Design AVIF Everywhere – Reliable Frontend Delivery
  *
- * - Replace frontend images with AVIF where available
- * - No output modifications if plugin setting is disabled
+ * - Intercepts all rendered frontend HTML via output buffering
+ * - Rewrites <img> tags to support AVIF with JavaScript swap
+ * - Works regardless of blocks, plugins, or shortcodes
  */
-
 
 /**
- * Swap frontend images (themes/templates) to AVIF
+ * Intercept and rewrite final HTML output before render.
  */
-add_filter( 'wp_get_attachment_image_src', 'tomatillo_avif_filter_image_src', 10, 4 );
+add_action( 'template_redirect', function() {
+	if ( ! tomatillo_avif_is_enabled() ) {
+		return;
+	}
 
-function tomatillo_avif_filter_image_src( $image, $attachment_id, $size, $icon ) {
-    if ( ! tomatillo_avif_is_enabled() ) {
-        return $image;
-    }
+	ob_start( 'tomatillo_avif_rewrite_images' );
+});
 
-    if ( ! is_array( $image ) || empty( $image[0] ) ) {
-        return $image;
-    }
+/**
+ * Rewrites <img> tags in final output to support data-avif delivery.
+ */
+function tomatillo_avif_rewrite_images( $html ) {
+	if ( stripos( $html, '<img' ) === false ) {
+		return $html;
+	}
 
-    $original_url = $image[0];
-    $avif_url = tomatillo_avif_guess_avif_url( $original_url );
+	return preg_replace_callback(
+		'/<img\b[^>]*\bsrc=["\']([^"\']+\.(?:jpe?g|png))["\'][^>]*>/i',
+		function( $matches ) {
+			$original_img = $matches[0];
+			$jpg_url      = $matches[1];
 
-    if ( $avif_url ) {
-        $image[0] = $avif_url;
-    }
+			$avif_url = tomatillo_avif_guess_avif_url( $jpg_url );
+			if ( ! $avif_url ) {
+				return $original_img;
+			}
 
-    return $image;
+			// Move known preload attributes to data-*
+			$revised = preg_replace_callback(
+				'/\s+(src|srcset|sizes|fetchpriority)=["\']([^"\']+)["\']/i',
+				function( $m ) {
+					return sprintf( ' data-%s="%s"', $m[1], esc_attr( $m[2] ) );
+				},
+				$original_img
+			);
+
+			// Add data-avif first, then replace <img
+			$revised = str_replace(
+				'<img',
+				sprintf(
+					'<img data-avif="%s"',
+					esc_url( $avif_url )
+				),
+				$revised
+			);
+
+			return $revised;
+		},
+		$html
+	);
 }
 
-/**
- * Swap Gutenberg rendered blocks (core/image, core/gallery) to use <picture> with AVIF
- */
-add_filter( 'render_block', 'tomatillo_avif_render_block_filter', 9, 2 );
-
-function tomatillo_avif_render_block_filter( $block_content, $block ) {
-    if ( ! tomatillo_avif_is_enabled() ) {
-        return $block_content;
-    }
-
-    if ( empty( $block['blockName'] ) ) {
-        return $block_content;
-    }
-
-    if ( ! in_array( $block['blockName'], [ 'core/image', 'core/gallery' ], true ) ) {
-        return $block_content;
-    }
-
-    if ( strpos( $block_content, '<img' ) === false ) {
-        return $block_content;
-    }
-
-    libxml_use_internal_errors( true );
-
-    $dom = new DOMDocument();
-    $dom->loadHTML( '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">' . $block_content );
-
-    $image_nodes = $dom->getElementsByTagName( 'img' );
-
-    if ( $image_nodes->length === 0 ) {
-        return $block_content;
-    }
-
-    $images_to_replace = [];
-
-    foreach ( $image_nodes as $img ) {
-        $parent = $img->parentNode;
-        if ( $parent && $parent->nodeName === 'picture' ) {
-            continue;
-        }
-        $images_to_replace[] = $img;
-    }
-
-    foreach ( $images_to_replace as $img ) {
-        $src = $img->getAttribute( 'src' );
-        $avif_src = tomatillo_avif_guess_avif_url( $src );
-
-        if ( ! $avif_src ) {
-            continue;
-        }
-
-        $picture = $dom->createElement( 'picture' );
-
-        $source = $dom->createElement( 'source' );
-        $source->setAttribute( 'srcset', esc_url( $avif_src ) );
-        $source->setAttribute( 'type', 'image/avif' );
-
-        $img_clone = $img->cloneNode( true );
-
-        $picture->appendChild( $source );
-        $picture->appendChild( $img_clone );
-
-        $img->parentNode->replaceChild( $picture, $img );
-    }
-
-    $html = $dom->saveHTML();
-
-    $html = preg_replace( '~<(?:!DOCTYPE|/?(?:html|body))[^>]*>~i', '', $html );
-    $html = preg_replace( '~<meta[^>]+charset[^>]*>~i', '', $html );
-
-    return $html;
-}
 
 /**
- * Swap Block Editor REST API attachment previews
- */
-add_filter( 'rest_prepare_attachment', 'tomatillo_avif_rest_api_attachment', 10, 3 );
-
-function tomatillo_avif_rest_api_attachment( $response, $post, $request ) {
-    if ( ! tomatillo_avif_is_enabled() ) {
-        return $response;
-    }
-
-    if ( ! $response instanceof WP_REST_Response ) {
-        return $response;
-    }
-
-    $mime = get_post_mime_type( $post );
-    if ( ! in_array( $mime, [ 'image/jpeg', 'image/jpg', 'image/png' ], true ) ) {
-        return $response;
-    }
-
-    if ( ! empty( $response->data['source_url'] ) ) {
-        $avif_url = tomatillo_avif_guess_avif_url( $response->data['source_url'] );
-
-        if ( $avif_url ) {
-            $response->data['source_url'] = $avif_url;
-
-            if ( ! empty( $response->data['media_details']['sizes'] ) ) {
-                foreach ( $response->data['media_details']['sizes'] as &$size_data ) {
-                    if ( isset( $size_data['source_url'] ) ) {
-                        $size_data['source_url'] = $avif_url;
-                    }
-                }
-            }
-        }
-    }
-
-    return $response;
-}
-
-/**
- * Guess AVIF URL from original URL
+ * Efficient per-request AVIF existence check with in-memory cache.
  */
 function tomatillo_avif_guess_avif_url( $url ) {
-    if ( ! tomatillo_avif_is_enabled() ) {
-        return false;
-    }
+	static $cache = [];
 
-    $avif_url = preg_replace( '/\\.(jpg|jpeg|png)$/i', '.avif', $url );
+	if ( isset( $cache[ $url ] ) ) {
+		return $cache[ $url ];
+	}
 
-    if ( tomatillo_avif_remote_file_exists( $avif_url ) ) {
-        return $avif_url;
-    }
+	if ( ! tomatillo_avif_is_enabled() ) {
+		return $cache[ $url ] = false;
+	}
 
-    $fallback_url = preg_replace( '/-\\d+x\\d+(?=\\.avif$)/i', '', $avif_url );
-    if ( tomatillo_avif_remote_file_exists( $fallback_url ) ) {
-        return $fallback_url;
-    }
+	// Primary guess: same filename with .avif
+	$avif_url = preg_replace( '/\.(jpe?g|png)$/i', '.avif', $url );
+	if ( tomatillo_avif_remote_file_exists( $avif_url ) ) {
+		return $cache[ $url ] = $avif_url;
+	}
 
-    $fallback_url_scaled = str_replace( '-scaled.avif', '.avif', $avif_url );
-    if ( tomatillo_avif_remote_file_exists( $fallback_url_scaled ) ) {
-        return $fallback_url_scaled;
-    }
+	// Try fallback (remove size suffix like -683x1024)
+	$fallback = preg_replace( '/-\d+x\d+(?=\.avif$)/i', '', $avif_url );
+	if ( tomatillo_avif_remote_file_exists( $fallback ) ) {
+		return $cache[ $url ] = $fallback;
+	}
 
-    return false;
+	// Try removing -scaled
+	$scaled_fallback = str_replace( '-scaled.avif', '.avif', $avif_url );
+	if ( tomatillo_avif_remote_file_exists( $scaled_fallback ) ) {
+		return $cache[ $url ] = $scaled_fallback;
+	}
+
+	return $cache[ $url ] = false;
 }
-
-
-
 
 /**
- * Fast file existence check with per-page cache
+ * Maps AVIF URLs to absolute file paths and checks existence.
  */
 function tomatillo_avif_remote_file_exists( $url ) {
-    static $cache = [];
+	static $cache = [];
 
-    if ( isset( $cache[ $url ] ) ) {
-        return $cache[ $url ];
-    }
+	if ( isset( $cache[ $url ] ) ) {
+		return $cache[ $url ];
+	}
 
-    $file = str_replace( site_url(), ABSPATH, $url );
-    $exists = file_exists( $file );
+	$local_path = str_replace( site_url(), ABSPATH, $url );
+	$exists = file_exists( $local_path );
 
-    $cache[ $url ] = $exists;
-
-    return $exists;
+	return $cache[ $url ] = $exists;
 }
-
-

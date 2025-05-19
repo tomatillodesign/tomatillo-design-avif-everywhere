@@ -3,7 +3,7 @@
  * Plugin Name: Tomatillo Design AVIF Everywhere
  * Plugin URI:  https://www.tomatillodesign.com/
  * Description: Automatically create AVIF copies of uploads, serve AVIF on front-end and admin where possible. Full library retro-conversion available.
- * Version:     1.0
+ * Version:     1.0.1
  * Author:      Tomatillo Design
  * Author URI:  https://www.tomatillodesign.com/
  * License:     GPL2
@@ -19,6 +19,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 // --- Define constants ---
 define( 'TOMATILLO_AVIF_DIR', plugin_dir_path( __FILE__ ) );
 define( 'TOMATILLO_AVIF_URL', plugin_dir_url( __FILE__ ) );
+
+// ✅ Define helper *before* includes
+if ( ! function_exists( 'tomatillo_avif_is_enabled' ) ) {
+    function tomatillo_avif_is_enabled() {
+        return (bool) get_option('tomatillo_design_avif_everywhere_enable', 1);
+    }
+}
 
 // --- Autoload classes ---
 foreach ( glob( TOMATILLO_AVIF_DIR . 'includes/*.php' ) as $file ) {
@@ -65,12 +72,30 @@ function tomatillo_avif_enqueue_styles() {
 }
 
 
-// helper to check the setting from my settings page
-if ( ! function_exists( 'tomatillo_avif_is_enabled' ) ) {
-    function tomatillo_avif_is_enabled() {
-        return (bool) get_option('tomatillo_design_avif_everywhere_enable', 1);
-    }
+add_action( 'wp_enqueue_scripts', 'tomatillo_enqueue_avif_swap_script', 1 );
+
+function tomatillo_enqueue_avif_swap_script() {
+	if ( ! tomatillo_avif_is_enabled() ) {
+		return;
+	}
+
+	wp_enqueue_script(
+		'tomatillo-avif-swap',
+		plugins_url( 'assets/js/avif-swap.js', __FILE__ ),
+		[],
+		filemtime( plugin_dir_path( __FILE__ ) . 'assets/js/avif-swap.js' ),
+		false // Load in <head>, not footer
+	);
 }
+
+
+
+// helper to check the setting from my settings page
+// if ( ! function_exists( 'tomatillo_avif_is_enabled' ) ) {
+//     function tomatillo_avif_is_enabled() {
+//         return (bool) get_option('tomatillo_design_avif_everywhere_enable', 1);
+//     }
+// }
 
 
 

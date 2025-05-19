@@ -84,7 +84,7 @@ function tomatillo_design_avif_everywhere_render_settings_page() {
 
         <div id="tomatillo-progress-wrapper" style="margin-top: 10px; display: none;">
             <div id="tomatillo-spinner" style="width: 24px; height: 24px; border: 3px solid #ccc; border-top-color: #4caf50; border-radius: 50%; animation: tomatillo-spin 0.8s linear infinite; margin-bottom: 10px;"></div>
-            <div style="background: #eee; border-radius: 4px; overflow: hidden; height: 12px; width: 100%; max-width: 400px;">
+            <div style="background: #777; border-radius: 4px; overflow: hidden; height: 12px; width: 100%; max-width: 400px;">
                 <div id="tomatillo-progress-bar" style="height: 100%; background: #4caf50; width: 0%;"></div>
             </div>
         </div>
