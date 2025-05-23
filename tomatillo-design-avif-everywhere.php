@@ -130,13 +130,28 @@ function tomatillo_scan_avif_callback() {
             continue;
         }
 
-        // Remove -scaled manually if it's present (WordPress quirk)
-        $unscaled_file = str_replace( '-scaled', '', $file );
-        $avif_file = preg_replace( '/\.(jpg|jpeg|png)$/i', '.avif', $unscaled_file );
+        // Remove -scaled manually if present (WordPress quirk)
+		$unscaled_file = str_replace( '-scaled', '', $file );
 
-        if ( ! file_exists( $avif_file ) ) {
+		$avif_file = preg_replace( '/\.(jpg|jpeg|png)$/i', '.avif', $file );
+        $webp_file = preg_replace( '/\.(jpg|jpeg|png)$/i', '.webp', $file );
+
+        if ( ! file_exists( $avif_file ) && ! file_exists( $webp_file ) ) {
+            // If neither exists, try also checking unscaled version
+            $unscaled_file = str_replace( '-scaled', '', $file );
+            if ( $unscaled_file !== $file ) {
+                $alt_avif = preg_replace( '/\.(jpg|jpeg|png)$/i', '.avif', $unscaled_file );
+                $alt_webp = preg_replace( '/\.(jpg|jpeg|png)$/i', '.webp', $unscaled_file );
+
+                if ( file_exists( $alt_avif ) || file_exists( $alt_webp ) ) {
+                    continue;
+                }
+            }
+
+            // ✅ Neither scaled nor unscaled versions exist — queue it
             $missing[] = basename( $file );
         }
+
     }
 
     if ( empty( $missing ) ) {

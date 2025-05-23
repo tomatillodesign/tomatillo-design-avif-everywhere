@@ -38,11 +38,14 @@ function tomatillo_avif_rewrite_images( $html ) {
 			$jpg_url      = $matches[1];
 
 			$avif_url = tomatillo_avif_guess_avif_url( $jpg_url );
-			if ( ! $avif_url ) {
+			$webp_url = preg_replace( '/\.(jpe?g|png)$/i', '.webp', $jpg_url );
+
+			// If neither AVIF nor WebP seems usable, return original
+			if ( ! $avif_url && ! $webp_url ) {
 				return $original_img;
 			}
 
-			// Move known preload attributes to data-*
+			// Rewrite preload attributes to data-*
 			$revised = preg_replace_callback(
 				'/\s+(src|srcset|sizes|fetchpriority)=["\']([^"\']+)["\']/i',
 				function( $m ) {
@@ -51,21 +54,23 @@ function tomatillo_avif_rewrite_images( $html ) {
 				$original_img
 			);
 
-			// Add data-avif first, then replace <img
-			$revised = str_replace(
-				'<img',
-				sprintf(
-					'<img data-avif="%s"',
-					esc_url( $avif_url )
-				),
-				$revised
-			);
+			// Inject data-avif and data-webp
+			$replacement = '<img';
+			if ( $avif_url ) {
+				$replacement .= sprintf( ' data-avif="%s"', esc_url( $avif_url ) );
+			}
+			if ( $webp_url ) {
+				$replacement .= sprintf( ' data-webp="%s"', esc_url( $webp_url ) );
+			}
+
+			$revised = str_replace( '<img', $replacement, $revised );
 
 			return $revised;
 		},
 		$html
 	);
 }
+
 
 
 /**

@@ -70,142 +70,160 @@ function tomatillo_generate_avif_delayed( $attachment_id ) {
 }
 
 
+
+
+
 /**
- * Create an AVIF copy of the original image
- * - Can optionally skip comparison to scaled JPG (for uploads)
+ * Create an AVIF (or fallback WebP) copy of the original image
  */
 function tomatillo_generate_single_avif( $original_path, $avif_path, $skip_scaled_check = false ) {
-    if ( ! file_exists( $original_path ) ) {
-        return new WP_Error( 'file_missing', 'Original image not found' );
-    }
+	if ( ! file_exists( $original_path ) ) {
+		return new WP_Error( 'file_missing', 'Original image not found' );
+	}
 
-    $reference_size = null;
+	$reference_size = null;
 
-    if ( ! $skip_scaled_check ) {
-        $scaled_path = preg_replace('/\.(jpg|jpeg|png)$/i', '-scaled.$1', $original_path);
-        $reference_path = file_exists( $scaled_path ) ? $scaled_path : $original_path;
-        $reference_size = filesize( $reference_path );
+	if ( ! $skip_scaled_check ) {
+		$scaled_path = preg_replace('/\.(jpg|jpeg|png)$/i', '-scaled.$1', $original_path);
+		$reference_path = file_exists( $scaled_path ) ? $scaled_path : $original_path;
+		$reference_size = filesize( $reference_path );
 
-        if ( ! $reference_size || $reference_size < 1000 ) {
-            return new WP_Error( 'bad_reference_size', 'Reference image size is invalid' );
-        }
-    }
+		if ( ! $reference_size || $reference_size < 1000 ) {
+			return new WP_Error( 'bad_reference_size', 'Reference image size is invalid' );
+		}
+	}
 
-    $attempts = [
-        [3000, 50],
-        [2400, 45],
-        [2000, 40],
-    ];
+	$attempts = [
+		[3000, 50],
+		[2400, 45],
+		[2000, 40],
+	];
 
-    // Detect if original is PNG
-    $is_png = strtolower( pathinfo( $original_path, PATHINFO_EXTENSION ) ) === 'png';
+	$is_png = strtolower( pathinfo( $original_path, PATHINFO_EXTENSION ) ) === 'png';
 
-    // ✅ Attempt CLI avifenc if it's a PNG and the binary exists
-    if ( $is_png && shell_exec('which avifenc') ) {
-        $cmd = escapeshellcmd("avifenc --lossless --speed 4") . ' ' .
-               escapeshellarg($original_path) . ' ' . escapeshellarg($avif_path . '.temp');
-        shell_exec($cmd);
+	// Optional: detect if PNG uses transparency
+	$has_transparency = false;
+	if ( $is_png && class_exists('Imagick') ) {
+		try {
+			$probe = new Imagick( $original_path );
+			$has_transparency = $probe->getImageAlphaChannel() &&
+				$probe->getImageChannelDepth(Imagick::CHANNEL_ALPHA) > 1;
+			$probe->clear();
+			$probe->destroy();
+		} catch (Exception $e) {}
+	}
 
-        if ( file_exists( $avif_path . '.temp' ) ) {
-            $avif_size = filesize( $avif_path . '.temp' );
-            $savings_allowed = $skip_scaled_check || ( $reference_size !== null && $avif_size < $reference_size );
+	// ✅ If avifenc available + PNG, try lossless CLI conversion first
+	if ( $is_png && ! $has_transparency && shell_exec('which avifenc') ) {
+		$cmd = escapeshellcmd("avifenc --lossless --speed 4") . ' ' .
+			escapeshellarg($original_path) . ' ' . escapeshellarg($avif_path . '.temp');
+		shell_exec($cmd);
 
-            if ( $savings_allowed ) {
-                rename( $avif_path . '.temp', $avif_path );
-                return [
-                    'size_bytes' => $avif_size,
-                    'quality'    => 'lossless',
-                    'resize_max' => 'native',
-                    'savings'    => $skip_scaled_check || ! $reference_size
-                                    ? null
-                                    : 100 - round( ( $avif_size / $reference_size ) * 100 ),
-                ];
-            }
+		if ( file_exists( $avif_path . '.temp' ) ) {
+			$avif_size = filesize( $avif_path . '.temp' );
+			$savings_allowed = $skip_scaled_check || ( $reference_size !== null && $avif_size < $reference_size );
 
-            @unlink( $avif_path . '.temp' );
-        }
-    }
+			if ( $savings_allowed ) {
+				rename( $avif_path . '.temp', $avif_path );
+				return [
+					'size_bytes' => $avif_size,
+					'quality'    => 'lossless',
+					'resize_max' => 'native',
+					'savings'    => $skip_scaled_check || ! $reference_size
+						? null
+						: 100 - round( ( $avif_size / $reference_size ) * 100 ),
+				];
+			}
+			@unlink( $avif_path . '.temp' );
+		}
+	}
 
-    // 🧯 If Imagick not available, exit early
-    if ( ! class_exists( 'Imagick' ) ) {
-        return new WP_Error( 'no_imagick', 'Imagick not installed and no avifenc fallback worked' );
-    }
+	// Fallback: try Imagick
+	if ( ! class_exists( 'Imagick' ) ) {
+		return new WP_Error( 'no_imagick', 'Imagick not available and no avifenc fallback worked' );
+	}
 
-    foreach ( $attempts as $attempt ) {
-        list($resize_max, $quality) = $attempt;
+	foreach ( $attempts as $attempt ) {
+		list( $resize_max, $quality ) = $attempt;
 
-        $image = new Imagick();
-        try {
-            $image->readImage( $original_path );
-        } catch ( Exception $e ) {
-            return new WP_Error( 'read_failed', 'Failed to read original image' );
-        }
+		$image = new Imagick();
+		try {
+			$image->readImage( $original_path );
+		} catch ( Exception $e ) {
+			return new WP_Error( 'read_failed', 'Failed to read original image' );
+		}
 
-        if ( ! in_array( 'AVIF', $image->queryFormats(), true ) ) {
-            return new WP_Error( 'no_avif_support', 'AVIF not supported by server' );
-        }
+		if ( ! in_array( 'AVIF', $image->queryFormats(), true ) ) {
+			$image->clear(); $image->destroy();
+			break;
+		}
 
-        // 🛑 Skip if PNG with alpha and Imagick is known to break transparency
-        if ( $is_png && $image->getImageAlphaChannel() ) {
-            $image->clear();
-            $image->destroy();
-            return new WP_Error( 'transparent_png', 'Transparent PNG skipped to avoid black background AVIF' );
-        }
+		// 🛑 Skip transparent PNGs for AVIF (fallback to WebP)
+		if ( $is_png && $has_transparency ) {
+			$image->clear(); $image->destroy();
+			break;
+		}
 
-        $dimensions = $image->getImageGeometry();
-        $width = $dimensions['width'];
-        $height = $dimensions['height'];
+		$dimensions = $image->getImageGeometry();
+		$width = $dimensions['width'];
+		$height = $dimensions['height'];
 
-        if ( $width > $resize_max || $height > $resize_max ) {
-            if ( $width >= $height ) {
-                $new_width = $resize_max;
-                $new_height = intval( ( $resize_max / $width ) * $height );
-            } else {
-                $new_height = $resize_max;
-                $new_width = intval( ( $resize_max / $height ) * $width );
-            }
-            $image->resizeImage( $new_width, $new_height, Imagick::FILTER_LANCZOS, 1, true );
-        }
+		if ( $width > $resize_max || $height > $resize_max ) {
+			if ( $width >= $height ) {
+				$new_width = $resize_max;
+				$new_height = intval( ( $resize_max / $width ) * $height );
+			} else {
+				$new_height = $resize_max;
+				$new_width = intval( ( $resize_max / $height ) * $width );
+			}
+			$image->resizeImage( $new_width, $new_height, Imagick::FILTER_LANCZOS, 1, true );
+		}
 
-        $image->setImageFormat( 'AVIF' );
-        $image->setOption( 'encoding', 'slow' );
-        $image->setOption( 'avif:quality', $quality );
+		$image->setImageFormat( 'AVIF' );
+		$image->setOption( 'avif:quality', $quality );
 
-        $temp_path = $avif_path . '.temp';
+		$temp_path = $avif_path . '.temp';
+		try {
+			$image->writeImage( $temp_path );
+		} catch ( Exception $e ) {
+			$image->clear(); $image->destroy(); @unlink( $temp_path );
+			continue;
+		}
 
-        try {
-            $image->writeImage( $temp_path );
-        } catch ( Exception $e ) {
-            $image->clear();
-            $image->destroy();
-            @unlink( $temp_path );
-            continue;
-        }
+		$image->clear(); $image->destroy();
 
-        $image->clear();
-        $image->destroy();
+		$avif_size = file_exists( $temp_path ) ? filesize( $temp_path ) : 0;
+		$savings_allowed = $skip_scaled_check || ( $reference_size !== null && $avif_size < $reference_size );
 
-        $avif_size = file_exists( $temp_path ) ? filesize( $temp_path ) : 0;
-        $savings_allowed = $skip_scaled_check || ( $reference_size !== null && $avif_size < $reference_size );
+		if ( $avif_size > 0 && $savings_allowed ) {
+			rename( $temp_path, $avif_path );
+			return [
+				'size_bytes' => $avif_size,
+				'quality'    => $quality,
+				'resize_max' => $resize_max,
+				'savings'    => $skip_scaled_check || ! $reference_size
+					? null
+					: 100 - round( ( $avif_size / $reference_size ) * 100 ),
+			];
+		}
 
-        if ( $avif_size > 0 && $savings_allowed ) {
-            rename( $temp_path, $avif_path );
-            return [
-                'size_bytes' => $avif_size,
-                'quality'    => $quality,
-                'resize_max' => $resize_max,
-                'savings'    => $skip_scaled_check || ! $reference_size
-                                ? null
-                                : 100 - round( ( $avif_size / $reference_size ) * 100 ),
-            ];
-        }
+		@unlink( $temp_path );
+	}
 
-        @unlink( $temp_path );
-    }
-
-    return new WP_Error( 'avif_too_large', 'AVIF larger than comparison image after all attempts' );
+	// 🧯 Fallback to WebP if AVIF skipped or failed
+	$webp_path = preg_replace('/\.avif$/i', '.webp', $avif_path);
+	try {
+		$img = new Imagick( $original_path );
+		$img->setImageFormat('webp');
+		$img->setOption('webp:method', '6');
+		$img->writeImage( $webp_path );
+		$size = filesize( $webp_path );
+		$img->clear(); $img->destroy();
+		return new WP_Error( 'fallback_webp', 'AVIF skipped, WebP created instead: ' . basename( $webp_path ) . ' ('.size_format($size).')' );
+	} catch ( Exception $e ) {
+		return new WP_Error( 'avif_failed_webp_failed', 'Both AVIF and WebP conversions failed' );
+	}
 }
-
 
 
 

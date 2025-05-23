@@ -352,4 +352,41 @@ function tomatillo_render_avif_server_diagnostics() {
 			<li>Uploads path: <code>'.esc_html( $upload_dir['basedir'] ).'</code></li>
 		</ul>
 	</div>';
+
+    echo '<div id="avif-hud-advanced" style="
+		background:#f8f9fa;
+		border:1px solid #ccd0d4;
+		padding:1em;
+		margin-top:2em;
+		font-family:monospace;
+		font-size:14px;
+		line-height:1.5;
+		border-radius:4px;
+		max-width:600px;
+	">
+		<h2 style="margin-top:0">🔍 Extended AVIF Diagnostics</h2>
+		<ul style="padding-left:1.2em;margin:0">
+			<li>PHP version: <strong style="color:#0073aa">'.phpversion().'</strong></li>
+			<li>WordPress version: <strong style="color:#0073aa">'.get_bloginfo('version').'</strong></li>
+			<li>WP memory limit: <strong style="color:#0073aa">'.WP_MEMORY_LIMIT.'</strong></li>
+			<li>PHP memory_limit: <strong style="color:#0073aa">'.ini_get('memory_limit').'</strong></li>
+			<li>Max execution time: <strong style="color:#0073aa">'.ini_get('max_execution_time').' seconds</strong></li>';
+
+if ( class_exists('Imagick') ) {
+	$imagick = new Imagick();
+	$version = $imagick->getVersion();
+	$imagick_version = $version['versionString'];
+} else {
+	$imagick_version = 'Not available';
+}
+
+echo '		<li>Imagick version: <strong style="color:#0073aa">'.esc_html($imagick_version).'</strong></li>';
+
+$library_used = ( class_exists('Imagick') && (new Imagick())->queryFormats('AVIF') ) ? 'Imagick' : 'GD';
+
+echo '		<li>Library selected: <strong style="color:#0073aa">'.$library_used.'</strong></li>
+		</ul>
+	</div>';
+
+
 }
