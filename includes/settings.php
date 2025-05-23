@@ -233,10 +233,16 @@ function tomatillo_design_avif_everywhere_render_settings_page() {
                 if (chunk.length === 0) {
                     button.innerText = 'Generate Missing AVIF Files';
                     progressWrapper.style.display = 'none';
+
+                    const webpCount = success.filter(f => f.includes('(WebP fallback)')).length;
+                    const avifCount = success.length - webpCount;
+
                     resultsDiv.innerHTML = `
                         <h3>AVIF Generation Complete</h3>
                         <p><strong>Success:</strong> ${success.length}</p>
                         <ul>${success.map(f => `<li>${f}</li>`).join('')}</ul>
+                        <p><strong>WebP Fallbacks:</strong> ${webpCount}</p>
+                        <p><strong>AVIF Direct:</strong> ${avifCount}</p>
                         <p><strong>Failed:</strong> ${failed.length}</p>
                         <ul style="color:red">${failed.map(f => `<li>${f}</li>`).join('')}</ul>
                     `;
@@ -253,14 +259,20 @@ function tomatillo_design_avif_everywhere_render_settings_page() {
                     if (data.success) {
                         data.data.success.forEach(file => {
                             let line = `${file.filename}: ${file.size_kb} KB`;
+
                             if (file.savings !== null) {
                                 line += ` — Saved ${file.savings}% vs scaled JPG`;
                             }
+
                             if (file.note === 'already exists') {
                                 line += ` (already exists)`;
+                            } else if (file.note && file.note.toLowerCase().includes('webp')) {
+                                line += ` (WebP fallback)`;
                             }
+
                             success.push(line);
                         });
+
                         failed.push(...data.data.failed);
                     } else {
                         failed.push(...chunk.map(f => `${f} (ajax error)`));
@@ -274,6 +286,7 @@ function tomatillo_design_avif_everywhere_render_settings_page() {
                     setTimeout(processNextBatch, 400);
                 });
             }
+
 
             processNextBatch();
         });

@@ -1,3 +1,5 @@
+window.tomatilloAvifYakDelay = true;
+
 document.addEventListener('DOMContentLoaded', function () {
 	console.log('[AVIF-SWAP] Starting image replacement');
 
@@ -79,4 +81,95 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 
 	console.log(`[AVIF-SWAP] Scan complete — ${processed} image(s) processed, ${skipped} skipped.`);
+});
+
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+	const rotators = document.querySelectorAll('.yakstretch-image-rotator');
+	if (rotators.length === 0) {
+		console.log('[AVIF-SWAP] No YakStretch blocks found.');
+		return;
+	}
+
+	rotators.forEach((rotator, index) => {
+		const rawData = rotator.dataset.images;
+		if (!rawData) return;
+
+		let originalList;
+		try {
+			originalList = JSON.parse(rawData);
+		} catch (e) {
+			console.warn(`[AVIF-SWAP] [YakStretch #${index}] Invalid JSON in data-images`);
+			return;
+		}
+
+		const rewrittenList = [];
+		let pending = originalList.length;
+		if (pending === 0) return;
+
+		originalList.forEach((url, i) => {
+			const baseUrl = url.replace(/-scaled(?=\.(jpe?g|png)$)/i, '');
+			const avif = baseUrl.replace(/\.(jpe?g|png)$/i, '.avif');
+			const webp = baseUrl.replace(/\.(jpe?g|png)$/i, '.webp');
+
+			// Try AVIF, then WebP, then original
+			fetch(avif, { method: 'HEAD' })
+				.then(res => {
+					rewrittenList[i] = res.ok ? avif : null;
+					if (!res.ok) {
+						return fetch(webp, { method: 'HEAD' }).then(res2 => {
+							rewrittenList[i] = res2.ok ? webp : url;
+						});
+					}
+				})
+				.catch(() => {
+					return fetch(webp, { method: 'HEAD' })
+						.then(res2 => {
+							rewrittenList[i] = res2.ok ? webp : url;
+						})
+						.catch(() => {
+							rewrittenList[i] = url;
+						});
+				})
+				.finally(() => {
+					pending--;
+					if (pending === 0) {
+						rotator.dataset.images = JSON.stringify(rewrittenList);
+						console.log(`[AVIF-SWAP] [YakStretch #${index}] Final optimized list:`, rewrittenList);
+
+						// Preload the first image
+						if (rewrittenList[0]) {
+							const preload = document.createElement('link');
+							preload.rel = 'preload';
+							preload.as = 'image';
+							preload.href = rewrittenList[0];
+							document.head.appendChild(preload);
+							console.log(`[AVIF-SWAP] [YakStretch #${index}] Preloading first image:`, rewrittenList[0]);
+						}
+
+						// Re-initialize the block with new images
+						if (typeof yakstretchInit === 'function') {
+							const wrapper = rotator.closest('.yakstretch-cover-block');
+							if (wrapper) {
+								// Clear existing background divs
+								const existing = wrapper.querySelectorAll('.yakstretch-bg');
+								existing.forEach(el => el.remove());
+
+								// Re-run YakStretch initialization
+								console.log(`[AVIF-SWAP] [YakStretch #${index}] Re-initializing with AVIF images`);
+								yakstretchInit(wrapper);
+
+								window.dispatchEvent(new Event('tomatilloAvifReady'));
+								
+							}
+						}
+					}
+				});
+		});
+	});
+
+	
+
 });

@@ -72,20 +72,24 @@ function tomatillo_avif_enqueue_styles() {
 }
 
 
+
+
 add_action( 'wp_enqueue_scripts', 'tomatillo_enqueue_avif_swap_script', 1 );
 
 function tomatillo_enqueue_avif_swap_script() {
-	if ( ! tomatillo_avif_is_enabled() ) {
-		return;
-	}
-
-	wp_enqueue_script(
+	// ✅ Register early so other plugins can detect it
+	wp_register_script(
 		'tomatillo-avif-swap',
 		plugins_url( 'assets/js/avif-swap.js', __FILE__ ),
 		[],
 		filemtime( plugin_dir_path( __FILE__ ) . 'assets/js/avif-swap.js' ),
-		false // Load in <head>, not footer
+		false // ✅ Load in <head>
 	);
+
+	// ✅ Enqueue if AVIF logic is active
+	if ( tomatillo_avif_is_enabled() ) {
+		wp_enqueue_script( 'tomatillo-avif-swap' );
+	}
 }
 
 
