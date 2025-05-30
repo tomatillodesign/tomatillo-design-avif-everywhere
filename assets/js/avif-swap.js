@@ -3,7 +3,13 @@ window.tomatilloAvifYakDelay = true;
 document.addEventListener('DOMContentLoaded', function () {
 	console.log('[AVIF-SWAP] Starting image replacement');
 
-	const allImages = document.querySelectorAll('img');
+	const container = document.querySelector('.entry-content');
+	if (!container) {
+		console.warn('[AVIF-SWAP] No .entry-content found, aborting.');
+		return;
+	}
+
+	const allImages = container.querySelectorAll('img');
 	let processed = 0;
 	let skipped = 0;
 
