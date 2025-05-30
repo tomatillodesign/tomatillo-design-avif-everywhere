@@ -26,50 +26,46 @@ add_action( 'template_redirect', function() {
 /**
  * Rewrites <img> tags in final output to support data-avif delivery.
  */
-function tomatillo_avif_rewrite_images( $html ) {
-	if ( stripos( $html, '<img' ) === false ) {
-		return $html;
+function tomatillo_avif_rewrite_images($html) {
+	if (stripos($html, '<img') === false) return $html;
+
+	libxml_use_internal_errors(true); // Suppress DOM warnings
+
+	$dom = new DOMDocument();
+	$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+
+	$xpath = new DOMXPath($dom);
+	$entry_images = $xpath->query('//div[contains(@class, "entry-content")]//img');
+
+	foreach ($entry_images as $img) {
+		$src = $img->getAttribute('src');
+		if (!preg_match('/\.(jpe?g|png)$/i', $src)) continue;
+
+		$avif = tomatillo_avif_guess_avif_url($src);
+		$webp = preg_replace('/\.(jpe?g|png)$/i', '.webp', $src);
+
+		if (!$avif && !$webp) continue;
+
+		// Move original attributes to data-* equivalents
+		foreach (['src', 'srcset', 'sizes', 'fetchpriority'] as $attr) {
+			if ($img->hasAttribute($attr)) {
+				$img->setAttribute("data-{$attr}", $img->getAttribute($attr));
+				$img->removeAttribute($attr);
+			}
+		}
+
+		// Add AVIF and WebP data attributes
+		if ($avif) {
+			$img->setAttribute('data-avif', esc_url($avif));
+		}
+		if ($webp) {
+			$img->setAttribute('data-webp', esc_url($webp));
+		}
 	}
 
-	return preg_replace_callback(
-		'/<img\b[^>]*\bsrc=["\']([^"\']+\.(?:jpe?g|png))["\'][^>]*>/i',
-		function( $matches ) {
-			$original_img = $matches[0];
-			$jpg_url      = $matches[1];
-
-			$avif_url = tomatillo_avif_guess_avif_url( $jpg_url );
-			$webp_url = preg_replace( '/\.(jpe?g|png)$/i', '.webp', $jpg_url );
-
-			// If neither AVIF nor WebP seems usable, return original
-			if ( ! $avif_url && ! $webp_url ) {
-				return $original_img;
-			}
-
-			// Rewrite preload attributes to data-*
-			$revised = preg_replace_callback(
-				'/\s+(src|srcset|sizes|fetchpriority)=["\']([^"\']+)["\']/i',
-				function( $m ) {
-					return sprintf( ' data-%s="%s"', $m[1], esc_attr( $m[2] ) );
-				},
-				$original_img
-			);
-
-			// Inject data-avif and data-webp
-			$replacement = '<img';
-			if ( $avif_url ) {
-				$replacement .= sprintf( ' data-avif="%s"', esc_url( $avif_url ) );
-			}
-			if ( $webp_url ) {
-				$replacement .= sprintf( ' data-webp="%s"', esc_url( $webp_url ) );
-			}
-
-			$revised = str_replace( '<img', $replacement, $revised );
-
-			return $revised;
-		},
-		$html
-	);
+	return $dom->saveHTML();
 }
+
 
 
 
