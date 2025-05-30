@@ -9,9 +9,17 @@ document.addEventListener('DOMContentLoaded', function () {
 		return;
 	}
 
-	const allImages = container.querySelectorAll('img');
+	const allImages = Array.from(container.querySelectorAll('img'));
+
+	// Get featured images too
+	const featuredWrapper = document.querySelector('.yak-featured-image-top-wrapper');
+	if (featuredWrapper) {
+		allImages.push(...featuredWrapper.querySelectorAll('img'));
+	}
+
 	let processed = 0;
 	let skipped = 0;
+
 
 	allImages.forEach((img, index) => {
 		// ✅ Already processed? Skip.
