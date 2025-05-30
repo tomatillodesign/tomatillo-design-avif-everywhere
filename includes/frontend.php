@@ -23,8 +23,10 @@ add_action( 'template_redirect', function() {
 	ob_start( 'tomatillo_avif_rewrite_images' );
 });
 
+
 /**
- * Rewrites <img> tags in final output to support data-avif delivery.
+ * Rewrites <img> tags in final output to support data-avif delivery,
+ * but only within specific containers (entry-content, yak-featured-image-top-wrapper).
  */
 function tomatillo_avif_rewrite_images($html) {
 	if (stripos($html, '<img') === false) return $html;
@@ -35,9 +37,11 @@ function tomatillo_avif_rewrite_images($html) {
 	$dom->loadHTML($html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
 
 	$xpath = new DOMXPath($dom);
-	$entry_images = $xpath->query('//div[contains(@class, "entry-content")]//img');
+	$images = $xpath->query(
+		'//div[contains(@class, "entry-content")]//img | //div[contains(@class, "yak-featured-image-top-wrapper")]//img'
+	);
 
-	foreach ($entry_images as $img) {
+	foreach ($images as $img) {
 		$src = $img->getAttribute('src');
 		if (!preg_match('/\.(jpe?g|png)$/i', $src)) continue;
 
@@ -46,7 +50,6 @@ function tomatillo_avif_rewrite_images($html) {
 
 		if (!$avif && !$webp) continue;
 
-		// Move original attributes to data-* equivalents
 		foreach (['src', 'srcset', 'sizes', 'fetchpriority'] as $attr) {
 			if ($img->hasAttribute($attr)) {
 				$img->setAttribute("data-{$attr}", $img->getAttribute($attr));
@@ -54,17 +57,13 @@ function tomatillo_avif_rewrite_images($html) {
 			}
 		}
 
-		// Add AVIF and WebP data attributes
-		if ($avif) {
-			$img->setAttribute('data-avif', esc_url($avif));
-		}
-		if ($webp) {
-			$img->setAttribute('data-webp', esc_url($webp));
-		}
+		if ($avif) $img->setAttribute('data-avif', esc_url($avif));
+		if ($webp) $img->setAttribute('data-webp', esc_url($webp));
 	}
 
 	return $dom->saveHTML();
 }
+
 
 
 
