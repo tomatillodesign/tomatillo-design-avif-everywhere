@@ -11,6 +11,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
 	const allImages = Array.from(container.querySelectorAll('img'));
 
+	// New check to add fallback src
+	document.querySelectorAll('.yak-single-info-card-outer-wrapper img').forEach((img, i) => {
+		const existing = img.getAttribute('src');
+		if (existing && existing.trim() !== '') return;
+
+		const avif = img.dataset.avif;
+		const webp = img.dataset.webp;
+		const fallback = img.dataset.src;
+
+		const chosen = avif || webp || fallback;
+
+		if (chosen) {
+			img.setAttribute('src', chosen);
+			console.log(`[AVIF-SWAP] [Preload #${i}] Injected src="${chosen}" into`, img);
+		} else {
+			console.warn(`[AVIF-SWAP] [Preload #${i}] No available fallback for`, img);
+		}
+	});
+
+
 	// Get featured images too
 	const featuredWrapper = document.querySelector('.yak-featured-image-top-wrapper');
 	if (featuredWrapper) {
@@ -22,77 +42,96 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 	allImages.forEach((img, index) => {
-		// ✅ Already processed? Skip.
-		if (img.dataset.avifSwap === 'done') return;
+		console.group(`[AVIF-SWAP] [#${index}]`);
 
-		const avifUrl = img.dataset.avif;
-		const webpUrl = img.dataset.webp;
-		const fallbackSrc = img.dataset.src || img.src;
-		const fallbackSrcset = img.dataset.srcset || img.srcset || '';
-		const fallbackSizes = img.dataset.sizes || img.sizes || '';
-		const fallbackPriority = img.dataset.fetchpriority || img.getAttribute('fetchpriority') || '';
-
-		if (!avifUrl && !webpUrl) {
-			console.log(`[AVIF-SWAP] [#${index}] ⏩ Skipping image — no data-avif or data-webp present`);
-			img.dataset.avifSwap = 'done';
-			skipped++;
+		if (img.dataset.avifSwap === 'done') {
+			console.log('⏩ Already processed, skipping.');
+			console.groupEnd();
 			return;
 		}
 
-		console.log(`[AVIF-SWAP] [#${index}] Found image:`, img);
-		console.log(`[AVIF-SWAP] [#${index}] AVIF: ${avifUrl || 'none'}, WebP: ${webpUrl || 'none'}, Fallback: ${fallbackSrc}`);
+		const avifUrl = img.dataset.avif;
+		const webpUrl = img.dataset.webp;
+		const fallbackSrc = img.dataset.src || img.getAttribute('src') || '';
+		const fallbackSrcset = img.dataset.srcset || img.getAttribute('srcset') || '';
+		const fallbackSizes = img.dataset.sizes || img.getAttribute('sizes') || '';
+		const fallbackPriority = img.dataset.fetchpriority || img.getAttribute('fetchpriority') || '';
+
+		console.log('🖼 Current IMG:', img);
+		console.log('→ AVIF:', avifUrl || '[none]');
+		console.log('→ WebP:', webpUrl || '[none]');
+		console.log('→ Fallback:', fallbackSrc);
+
 		processed++;
 		img.dataset.avifSwap = 'done';
 
-		const replaceImage = (newSrc) => {
-			const clone = img.cloneNode(true);
-			clone.src = newSrc;
-
-			if (newSrc !== fallbackSrc) {
-				clone.removeAttribute('srcset');
-				clone.removeAttribute('sizes');
-				clone.removeAttribute('fetchpriority');
-			} else {
-				if (fallbackSrcset) clone.setAttribute('srcset', fallbackSrcset);
-				if (fallbackSizes) clone.setAttribute('sizes', fallbackSizes);
-				if (fallbackPriority) clone.setAttribute('fetchpriority', fallbackPriority);
+		const replaceImage = (newSrc, label) => {
+			if (!newSrc) {
+				console.warn('❌ No source provided for replacement, skipping.');
+				return;
 			}
 
-			console.log(`[AVIF-SWAP] [#${index}] 🖼 Replacing image with: ${newSrc}`);
-			img.replaceWith(clone);
+			console.log(`🔁 Replacing image with [${label}]: ${newSrc}`);
+
+			const oldSrc = img.getAttribute('src');
+			img.setAttribute('src', newSrc);
+
+			if (label !== 'fallback') {
+				img.removeAttribute('srcset');
+				img.removeAttribute('sizes');
+				img.removeAttribute('fetchpriority');
+			} else {
+				if (fallbackSrcset) img.setAttribute('srcset', fallbackSrcset);
+				if (fallbackSizes) img.setAttribute('sizes', fallbackSizes);
+				if (fallbackPriority) img.setAttribute('fetchpriority', fallbackPriority);
+			}
+
+			console.log('✅ New src set:', img.src);
+			setTimeout(() => {
+				const width = img.naturalWidth;
+				const height = img.naturalHeight;
+				console.log(`🧪 Post-replacement dimensions: ${width}x${height}`);
+				if (width === 0 || height === 0) {
+					console.warn('⚠️ Image appears broken after swap!');
+				}
+			}, 100); // Delay to let browser re-evaluate image
 		};
 
 		const checkFormat = (url, formatName, onSuccess, onFailure) => {
 			if (!url) {
-				console.log(`[AVIF-SWAP] [#${index}] No ${formatName} URL`);
+				console.log(`⛔ No ${formatName} URL.`);
 				onFailure();
 				return;
 			}
 
+			console.log(`🌐 Checking ${formatName} URL via HEAD: ${url}`);
 			fetch(url, { method: 'HEAD' })
-			.then((res) => {
-				if (res.ok) {
-					onSuccess(url);
-				} else {
-					console.info(`[AVIF-SWAP] File not found (HTTP ${res.status}): ${url}`);
+				.then((res) => {
+					if (res.ok) {
+						console.log(`✅ ${formatName} exists (${res.status})`);
+						onSuccess(url, formatName);
+					} else {
+						console.warn(`❌ ${formatName} NOT found (${res.status})`);
+						onFailure();
+					}
+				})
+				.catch((err) => {
+					console.warn(`💥 Network error for ${formatName}:`, err);
 					onFailure();
-				}
-			})
-			.catch((err) => {
-				console.info(`[AVIF-SWAP] Network error (expected for missing file): ${url}`);
-				onFailure();
-			});
-
+				});
 		};
 
 		checkFormat(avifUrl, 'AVIF',
-			(successUrl) => replaceImage(successUrl),
+			(url, format) => replaceImage(url, format),
 			() => checkFormat(webpUrl, 'WebP',
-				(successUrl) => replaceImage(successUrl),
-				() => replaceImage(fallbackSrc)
+				(url, format) => replaceImage(url, format),
+				() => replaceImage(fallbackSrc, 'fallback')
 			)
 		);
+
+		console.groupEnd();
 	});
+
 
 	console.log(`[AVIF-SWAP] Scan complete — ${processed} image(s) processed, ${skipped} skipped.`);
 });
