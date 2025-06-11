@@ -3,7 +3,7 @@
  * Plugin Name: Tomatillo Design AVIF Everywhere
  * Plugin URI:  https://www.tomatillodesign.com/
  * Description: Automatically create AVIF copies of uploads, serve AVIF on front-end and admin where possible. Full library retro-conversion available.
- * Version:     1.0.1
+ * Version:     1.0.2
  * Author:      Tomatillo Design
  * Author URI:  https://www.tomatillodesign.com/
  * License:     GPL2
