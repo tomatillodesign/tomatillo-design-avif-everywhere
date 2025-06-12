@@ -16,9 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Exit if accessed directly
-if ( ! defined( 'ABSPATH' ) ) exit;
-
 // --- Plugin Constants ---
 define( 'TOMATILLO_AVIF_VERSION', '1.2.0' );
 define( 'TOMATILLO_AVIF_FILE', __FILE__ );
@@ -38,6 +35,9 @@ $includes = [
 	'admin-ui.php',
 	'debug-tools.php',
 	'helpers.php',
+	'admin/scan-library.php',
+	'admin/settings-page.php',
+	'admin/ajax-handlers.php',
 ];
 
 foreach ( $includes as $file ) {
@@ -46,11 +46,6 @@ foreach ( $includes as $file ) {
 		require_once $path;
 	}
 }
-
-
-
-
-
 
 
 add_shortcode( 'test_avif_meta', function() {

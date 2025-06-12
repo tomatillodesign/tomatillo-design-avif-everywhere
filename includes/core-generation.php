@@ -54,3 +54,52 @@ function tomatillo_generate_image_formats( $input_path, $options = [] ) {
 
 	return $results;
 }
+
+/**
+ * Generate AVIF/WebP for a given attachment ID and update post meta.
+ *
+ * @param int $attachment_id
+ * @return array|null
+ */
+function tomatillo_generate_avif_for_attachment( $attachment_id ) {
+	$original_path = get_attached_file( $attachment_id );
+
+	if ( ! file_exists( $original_path ) ) return null;
+
+	// 🧠 Strip -scaled if present (WordPress quirk)
+	$unscaled_path = preg_replace( '/-scaled\.(jpe?g|png)$/i', '.$1', $original_path );
+
+	$path_to_use = file_exists( $unscaled_path ) ? $unscaled_path : $original_path;
+
+	$result = tomatillo_generate_image_formats( $path_to_use, [
+		'quality'    => 50,
+		'resize_max' => 3000,
+		'formats'    => [ 'avif', 'webp' ],
+	]);
+
+	if ( is_wp_error( $result ) ) return null;
+
+	$upload_dir = wp_upload_dir();
+	$base_url   = trailingslashit( $upload_dir['baseurl'] );
+	$base_dir   = trailingslashit( $upload_dir['basedir'] );
+
+	foreach ( $result['formats'] as $format => $info ) {
+		if ( is_wp_error( $info ) ) continue;
+		$rel_path = str_replace( $base_dir, '', $info['path'] );
+		$url = $base_url . ltrim( $rel_path, '/' );
+
+		if ( $format === 'avif' ) {
+			update_post_meta( $attachment_id, '_avif_url', esc_url_raw( $url ) );
+		}
+		if ( $format === 'webp' ) {
+			update_post_meta( $attachment_id, '_webp_url', esc_url_raw( $url ) );
+		}
+	}
+
+	return [
+		'id'       => $attachment_id,
+		'filename' => basename( $path_to_use ),
+		'avif'     => $result['formats']['avif'] ?? null,
+		'webp'     => $result['formats']['webp'] ?? null,
+	];
+}
