@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     generateBtn.innerText = 'Generate Missing AVIF/WebP Files';
 
                     generateResultsDiv.innerHTML = `<h3>✅ Generation Complete</h3>
-                        <ul class="clb-avif-reporting-list" style="margin-left:1em">${success.join('')}</ul>
+                        <ul class="clb-avif-reporting-list" style="margin-left:0;list-style: none;">${success.join('')}</ul>
                         ${failed.length > 0 ? `<h3>❌ Failed</h3><ul style="color:red">${failed.map(msg => `<li>${msg}</li>`).join('')}</ul>` : ''}
                     `;
                     return;
