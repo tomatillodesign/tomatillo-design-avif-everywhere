@@ -8,44 +8,38 @@ function tomatillo_ajax_scan_avif() {
 
 	$missing = [];
 
+	// Query all image attachments
 	$args = [
 		'post_type'      => 'attachment',
 		'post_status'    => 'inherit',
 		'posts_per_page' => -1,
-		'post_mime_type' => ['image/jpeg', 'image/png'],
+		'post_mime_type' => 'image',
 		'fields'         => 'ids',
-		'meta_query'     => [
-			'relation' => 'OR',
-			[
-				'key'     => '_avif_url',
-				'compare' => 'NOT EXISTS',
-			],
-			[
-				'key'   => '_avif_url',
-				'value' => '',
-				'compare' => '=',
-			],
-			[
-				'key'     => '_webp_url',
-				'compare' => 'NOT EXISTS',
-			],
-			[
-				'key'   => '_webp_url',
-				'value' => '',
-				'compare' => '=',
-			],
-		],
 	];
+
+	$allowed_types = [ 'image/jpeg', 'image/jpg', 'image/png', 'image/x-png' ];
 
 	$query = new WP_Query( $args );
 
 	foreach ( $query->posts as $attachment_id ) {
-		$file = get_attached_file( $attachment_id );
-		if ( $file && file_exists( $file ) ) {
-			$missing[] = [
-				'id'       => $attachment_id,
-				'filename' => basename( $file ),
-			];
+		$mime = get_post_mime_type( $attachment_id );
+
+		// Skip anything that isn't jpeg or png
+		if ( ! in_array( $mime, $allowed_types, true ) ) {
+			continue;
+		}
+
+		$has_avif = get_post_meta( $attachment_id, '_avif_url', true );
+		$has_webp = get_post_meta( $attachment_id, '_webp_url', true );
+
+		if ( empty( $has_avif ) && empty( $has_webp ) ) {
+			$file = get_attached_file( $attachment_id );
+			if ( $file && file_exists( $file ) ) {
+				$missing[] = [
+					'id'       => $attachment_id,
+					'filename' => basename( $file ),
+				];
+			}
 		}
 	}
 

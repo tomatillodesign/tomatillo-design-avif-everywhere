@@ -38,6 +38,8 @@ $includes = [
 	'admin/scan-library.php',
 	'admin/settings-page.php',
 	'admin/ajax-handlers.php',
+	'admin/attachment-fields.php',
+	'cleanup/delete-variants-on-delete.php',
 ];
 
 foreach ( $includes as $file ) {

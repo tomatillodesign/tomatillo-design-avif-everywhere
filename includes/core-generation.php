@@ -71,62 +71,101 @@ function tomatillo_generate_avif_for_attachment( $attachment_id ) {
 	$scaled_path = preg_replace( '/\.(jpe?g|png)$/i', '-scaled.$1', $unscaled_path );
 	$scaled_size = file_exists( $scaled_path ) ? filesize( $scaled_path ) : $original_size;
 
-	// Define AVIF fallbacks
-	$fallback_attempts = [
-		[ 'resize_max' => 2000, 'quality' => 42 ],
-		[ 'resize_max' => 1800, 'quality' => 40 ],
-		[ 'resize_max' => 1600, 'quality' => 38 ],
-	];
+	$mime_type = mime_content_type( $path_to_use );
+	$skip_avif = false;
+
+	if ( strpos( $mime_type, 'png' ) !== false ) {
+		$skip_avif = true;
+	}
 
 	$avif_info = null;
 
-	foreach ( $fallback_attempts as $attempt ) {
-		$generated = tomatillo_generate_image_formats( $path_to_use, [
+	if ( ! $skip_avif ) {
+
+		// Define AVIF fallbacks
+		$fallback_attempts = [
+			[ 'resize_max' => 2400, 'quality' => 42 ],
+			[ 'resize_max' => 1800, 'quality' => 38 ],
+			[ 'resize_max' => 1600, 'quality' => 33 ],
+			[ 'resize_max' => 1200, 'quality' => 30 ],
+		];
+
+		foreach ( $fallback_attempts as $attempt ) {
+			$generated = tomatillo_generate_image_formats( $path_to_use, [
+				'quality'    => $attempt['quality'],
+				'resize_max' => $attempt['resize_max'],
+				'formats'    => [ 'avif' ]
+			]);
+
+			if (
+				! is_wp_error( $generated ) &&
+				isset( $generated['formats']['avif'] ) &&
+				! is_wp_error( $generated['formats']['avif'] )
+			) {
+				$avif_info = $generated['formats']['avif'];
+
+				// ❌ Check max size
+				$max_bytes = (int) get_option( 'tomatillo_avif_max_size', 0 );
+				if ( $max_bytes && $avif_info['size_bytes'] > $max_bytes ) {
+					unlink( $avif_info['path'] );
+					$avif_info = null;
+					continue;
+				}
+
+				// Only accept if at least 20% smaller than scaled.jpg
+				if ( $avif_info['size_bytes'] < ( $scaled_size * 0.8 ) ) {
+					break; // ✅ Accept
+				} else {
+					unlink( $avif_info['path'] );
+					$avif_info = null;
+				}
+
+			}
+		}
+
+	}
+
+	$webp_info = null;
+
+	$fallback_webp_attempts = [
+		[ 'resize_max' => 2400, 'quality' => 65 ],
+		[ 'resize_max' => 1800, 'quality' => 60 ],
+		[ 'resize_max' => 1600, 'quality' => 55 ],
+		[ 'resize_max' => 1200, 'quality' => 50 ],
+	];
+
+	foreach ( $fallback_webp_attempts as $attempt ) {
+		$webp_result = tomatillo_generate_image_formats( $path_to_use, [
 			'quality'    => $attempt['quality'],
 			'resize_max' => $attempt['resize_max'],
-			'formats'    => [ 'avif' ]
+			'formats'    => [ 'webp' ]
 		]);
 
 		if (
-			! is_wp_error( $generated ) &&
-			isset( $generated['formats']['avif'] ) &&
-			! is_wp_error( $generated['formats']['avif'] )
+			! is_wp_error( $webp_result ) &&
+			isset( $webp_result['formats']['webp'] ) &&
+			! is_wp_error( $webp_result['formats']['webp'] )
 		) {
-			$avif_info = $generated['formats']['avif'];
+			$webp_info = $webp_result['formats']['webp'];
 
 			// ❌ Check max size
 			$max_bytes = (int) get_option( 'tomatillo_avif_max_size', 0 );
-			if ( $max_bytes && $avif_info['size_bytes'] > $max_bytes ) {
-				unlink( $avif_info['path'] );
-				$avif_info = null;
+			if ( $max_bytes && $webp_info['size_bytes'] > $max_bytes ) {
+				unlink( $webp_info['path'] );
+				$webp_info = null;
 				continue;
 			}
 
 			// Only accept if at least 20% smaller than scaled.jpg
-			if ( $avif_info['size_bytes'] < ( $scaled_size * 0.8 ) ) {
+			if ( $webp_info['size_bytes'] < ( $scaled_size * 0.8 ) ) {
 				break; // ✅ Accept
 			} else {
-				unlink( $avif_info['path'] );
-				$avif_info = null;
+				unlink( $webp_info['path'] );
+				$webp_info = null;
 			}
-
 		}
 	}
 
-	// ✅ WebP always created once
-	$webp_info = null;
-	$webp_result = tomatillo_generate_image_formats( $path_to_use, [
-		'quality'    => 65,
-		'resize_max' => 2000,
-		'formats'    => [ 'webp' ]
-	]);
-	if (
-		! is_wp_error( $webp_result ) &&
-		isset( $webp_result['formats']['webp'] ) &&
-		! is_wp_error( $webp_result['formats']['webp'] )
-	) {
-		$webp_info = $webp_result['formats']['webp'];
-	}
 
 	// Store meta
 	$upload_dir = wp_upload_dir();
@@ -136,14 +175,27 @@ function tomatillo_generate_avif_for_attachment( $attachment_id ) {
 	if ( $avif_info ) {
 		$rel_path = str_replace( $base_dir, '', $avif_info['path'] );
 		update_post_meta( $attachment_id, '_avif_url', esc_url_raw( $base_url . ltrim( $rel_path, '/' ) ) );
+
+		// Store AVIF file size in KB (rounded like WP)
+		$avif_kb = round( filesize( $avif_info['path'] ) / 1024 );
+		update_post_meta( $attachment_id, '_avif_size_kb', $avif_kb );
 	} else {
 		delete_post_meta( $attachment_id, '_avif_url' );
+		delete_post_meta( $attachment_id, '_avif_size_kb' );
 	}
 
 	if ( $webp_info ) {
 		$rel_path = str_replace( $base_dir, '', $webp_info['path'] );
 		update_post_meta( $attachment_id, '_webp_url', esc_url_raw( $base_url . ltrim( $rel_path, '/' ) ) );
+
+		// Store WebP file size in KB (rounded like WP)
+		$webp_kb = round( filesize( $webp_info['path'] ) / 1024 );
+		update_post_meta( $attachment_id, '_webp_size_kb', $webp_kb );
+	} else {
+		delete_post_meta( $attachment_id, '_webp_url' );
+		delete_post_meta( $attachment_id, '_webp_size_kb' );
 	}
+
 
 	// Return summary
 	return [
