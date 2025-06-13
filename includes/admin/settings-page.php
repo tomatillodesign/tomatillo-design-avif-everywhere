@@ -34,9 +34,9 @@ function tomatillo_avif_render_settings_page() {
 
     echo '<hr>';
     echo '<form method="post" action="options.php">';
-    settings_fields( 'tomatillo_avif_settings_group' );
-    do_settings_sections( 'tomatillo-avif-settings' );
-    submit_button( 'Save Settings' );
+        settings_fields( 'tomatillo_avif_settings_group' );
+        do_settings_sections( 'tomatillo-avif-settings' );
+        submit_button( 'Save Settings' );
     echo '</form>';
 
 	// Output diagnostics
@@ -86,9 +86,15 @@ function tomatillo_avif_render_settings_page() {
 
 add_action( 'admin_init', 'tomatillo_avif_register_settings' );
 function tomatillo_avif_register_settings() {
-	register_setting( 'tomatillo_avif_settings_group', 'tomatillo_avif_max_size_mb', [
+	
+    register_setting( 'tomatillo_avif_settings_group', 'tomatillo_avif_max_size_mb', [
 		'sanitize_callback' => 'tomatillo_avif_sanitize_max_size_mb'
 	] );
+
+    register_setting(
+        'tomatillo_avif_settings_group',
+        'tomatillo_design_avif_everywhere_enable'
+    );
 
 	add_settings_section(
 		'tomatillo_avif_main_section',
@@ -104,6 +110,15 @@ function tomatillo_avif_register_settings() {
 		'tomatillo-avif-settings',
 		'tomatillo_avif_main_section'
 	);
+
+    add_settings_field(
+        'tomatillo_design_avif_everywhere_enable_field',
+        'Enable AVIF Replacement',
+        'tomatillo_design_avif_everywhere_enable_field_render',
+        'tomatillo-avif-settings',
+        'tomatillo_avif_main_section'
+    );
+
 }
 
 function tomatillo_avif_sanitize_max_size_mb( $input ) {
@@ -220,6 +235,20 @@ echo '		<li>Library selected: <strong style="color:#0073aa">'.$library_used.'</s
 }
 
 
+
+function tomatillo_design_avif_everywhere_enable_field_render() {
+	$option = get_option('tomatillo_design_avif_everywhere_enable', 1);
+	?>
+	<label class="tomatillo-toggle">
+		<input type="checkbox" name="tomatillo_design_avif_everywhere_enable" value="1" <?php checked(1, $option, true); ?> />
+		<span class="tomatillo-slider"></span>
+	</label>
+	<span class="tomatillo-toggle-label">Automatically generate AVIF/WebP files when uploading JPEG/PNG images.</span>
+	<?php
+}
+
+
+
 add_action( 'admin_enqueue_scripts', function( $hook ) {
 	if ( $hook !== 'settings_page_tomatillo-avif-settings' ) return;
 
@@ -233,3 +262,6 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 
 	wp_localize_script( 'tomatillo-avif-admin', 'ajaxurl', admin_url( 'admin-ajax.php' ) );
 }, 20 );
+
+
+
