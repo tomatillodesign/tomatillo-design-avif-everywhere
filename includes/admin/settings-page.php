@@ -55,7 +55,7 @@ function tomatillo_avif_register_settings() {
 
 	add_settings_field(
 		'tomatillo_avif_max_size_mb_field',
-		'Max AVIF File Size (MB)',
+		'Max File Size (MB)',
 		'tomatillo_avif_max_size_mb_field_render',
 		'tomatillo-avif-settings',
 		'tomatillo_avif_main_section'
@@ -71,7 +71,7 @@ function tomatillo_avif_sanitize_max_size_mb( $input ) {
 
 function tomatillo_avif_max_size_mb_field_render() {
 	$mb = get_option( 'tomatillo_avif_max_size_mb', 1.0 ); // default 1MB
-	echo '<input type="number" name="tomatillo_avif_max_size_mb" value="' . esc_attr( $mb ) . '" step="0.1" min="0" style="width: 80px;">';
+	echo '<input type="number" name="tomatillo_avif_max_size_mb" value="' . esc_attr( $mb ) . '" step="0.01" min="0" style="width: 80px;">';
 	echo '<p class="description">Optional. AVIFs/WebPs larger than this will be skipped. Default: 1.0 MB.</p>';
 }
 
