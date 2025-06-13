@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 					console.log('[AVIF-ADMIN] Missing images:', data.data.missing);
 
 					const resultList = data.data.missing.map(item => {
-						return `<li>Attachment ID: ${item.id} — ${item.filename}</li>`;
+						return `<li><strong>Attachment ID: ${item.id}</strong> — <em>${item.filename}</em></li>`;
 					}).join('');
 
 					resultsDiv.innerHTML = `
@@ -72,87 +72,109 @@ document.addEventListener('DOMContentLoaded', () => {
 			});
 	});
 
-	// Handle generate button click
-	if (generateBtn) {
-		generateBtn.addEventListener('click', () => {
-			console.log('[AVIF-ADMIN] Generate button clicked');
+	// Handle generate button click (single-file processing)
+    if (generateBtn) {
+        generateBtn.addEventListener('click', () => {
+            console.log('[AVIF-ADMIN] Generate button clicked');
 
-			const files = JSON.parse(generateBtn.dataset.files || '[]');
-			if (!files.length) {
-				console.warn('[AVIF-ADMIN] No files to process.');
-				return;
-			}
+            const files = JSON.parse(generateBtn.dataset.files || '[]');
+            if (!files.length) {
+                console.warn('[AVIF-ADMIN] No files to process.');
+                return;
+            }
 
-			generateBtn.disabled = true;
-			generateBtn.innerText = 'Generating...';
-			generateResultsDiv.innerHTML = '<p>Generating files...</p>';
+            generateBtn.disabled = true;
+            generateBtn.innerText = 'Generating...';
+            generateResultsDiv.innerHTML = '<p>Starting generation...</p>';
 
-			fetch(ajaxurl, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded',
-				},
-				body: 'action=tomatillo_generate_avif_batch&files=' + encodeURIComponent(JSON.stringify(files)),
-			})
-				.then(res => {
-					console.log('[AVIF-ADMIN] Generation AJAX response received');
-					return res.json();
-				})
-				.then(data => {
-                    console.log('[AVIF-ADMIN] Generation result:', data);
-                    generateBtn.disabled = false;
+            const progressWrapper = document.getElementById('tomatillo-progress-wrapper');
+            const progressBar = document.getElementById('tomatillo-progress-bar');
+            progressWrapper.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            let index = 0;
+            const success = [];
+            const failed = [];
+
+            const formatMb = (bytes) => {
+                const mb = (bytes / 1024 / 1024).toFixed(2);
+                return mb < 1 ? `${mb}` : mb;
+            };
+
+            function formatLine(item) {
+                const originalMb = formatMb(item.original_size);
+                const scaledMb = item.scaled_size ? formatMb(item.scaled_size) : originalMb;
+                const base = `<strong>Attachment ID: ${item.id}</strong> — <em>${item.filename}</em> (${originalMb} MB original${item.scaled_size ? `, ${scaledMb} MB scaled` : ''})`;
+
+                let avifHtml = '<span style="color:red;">AVIF: skipped</span>';
+                if (item.avif) {
+                    const avifMb = formatMb(item.avif.size_bytes);
+                    const compareSize = item.scaled_size || item.original_size;
+                    const savings = Math.round(100 - (item.avif.size_bytes / compareSize * 100));
+                    avifHtml = `<span style="color:green;">AVIF: ${avifMb} MB (saved ${savings}%)</span>`;
+                }
+
+                let webpHtml = '<span style="color:red;">WebP: failed</span>';
+                if (item.webp) {
+                    const webpMb = formatMb(item.webp.size_bytes);
+                    const compareSize = item.scaled_size || item.original_size;
+                    const savings = Math.round(100 - (item.webp.size_bytes / compareSize * 100));
+                    webpHtml = `<span style="color:green;">WebP: ${webpMb} MB (saved ${savings}%)</span>`;
+                }
+
+                return `<li class="clb-avif-reporting-item">${base}<br>${avifHtml}<br>${webpHtml}</li>`;
+            }
+
+            function processNext() {
+                if (index >= files.length) {
+                    // All done
+                    progressWrapper.style.display = 'none';
                     generateBtn.innerText = 'Generate Missing AVIF/WebP Files';
 
-                    function formatMb(bytes) {
-                        const mb = (bytes / 1024 / 1024).toFixed(2);
-                        return mb < 1 ? `${mb}` : mb;
-                    }
+                    generateResultsDiv.innerHTML = `<h3>✅ Generation Complete</h3>
+                        <ul class="clb-avif-reporting-list" style="margin-left:1em">${success.join('')}</ul>
+                        ${failed.length > 0 ? `<h3>❌ Failed</h3><ul style="color:red">${failed.map(msg => `<li>${msg}</li>`).join('')}</ul>` : ''}
+                    `;
+                    return;
+                }
 
-                    if (data.success && data.data.success.length > 0) {
-                        const output = data.data.success.map(item => {
-                            const originalMb = formatMb(item.original_size);
-                            const scaledMb = item.scaled_size ? formatMb(item.scaled_size) : originalMb;
-                            const base = `Attachment ID: ${item.id} — ${item.filename} (${originalMb} MB original${item.scaled_size ? `, ${scaledMb} MB scaled` : ''})`;
+                const fileId = files[index].id;
 
-                            // AVIF Report
-                            let avifHtml = '<span style="color:red;">AVIF: skipped</span>';
-                            if (item.avif) {
-                                const avifMb = formatMb(item.avif.size_bytes);
-                                const avifCompareSize = item.scaled_size || item.original_size;
-                                const avifSavings = Math.round(100 - (item.avif.size_bytes / avifCompareSize * 100));
-                                avifHtml = `<span style="color:green;">AVIF: ${avifMb} MB (saved ${avifSavings}%)</span>`;
-                            }
-
-                            // WebP Report
-                            let webpHtml = '<span style="color:red;">WebP: failed</span>';
-                            if (item.webp) {
-                                const webpMb = formatMb(item.webp.size_bytes);
-                                const webpCompareSize = item.scaled_size || item.original_size;
-                                const webpSavings = Math.round(100 - (item.webp.size_bytes / webpCompareSize * 100));
-                                webpHtml = `<span style="color:green;">WebP: ${webpMb} MB (saved ${webpSavings}%)</span>`;
-                            }
-
-                            return `<li>${base}<br>${avifHtml}<br>${webpHtml}</li>`;
-                        }).join('');
-
-                        generateResultsDiv.innerHTML = `<h3>✅ Generation Complete</h3><ul style="margin-left:1em">${output}</ul>`;
+                fetch(ajaxurl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'action=tomatillo_generate_avif_single&file=' + encodeURIComponent(fileId)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.data && data.data.success && data.data.success.length > 0) {
+                        const line = formatLine(data.data.success[0]);
+                        success.push(line);
                     } else {
-                        generateResultsDiv.innerHTML = '<p style="color:red"><strong>No files were successfully generated.</strong></p>';
-                    }
-
-                    if (data.data.failed.length > 0) {
-                        const failOutput = data.data.failed.map(msg =>
-                            `<li style="color:red">${msg}</li>`
-                        ).join('');
-                        generateResultsDiv.innerHTML += `<h3>❌ Failed</h3><ul>${failOutput}</ul>`;
+                        failed.push(`ID ${fileId}: generation failed`);
                     }
                 })
                 .catch(err => {
-					console.error('[AVIF-ADMIN] Generation AJAX error:', err);
-					generateBtn.disabled = false;
-					generateBtn.innerText = 'Generate Missing AVIF/WebP Files';
-					generateResultsDiv.innerHTML = '<p style="color:red"><strong>Error during generation. See console for details.</strong></p>';
-				});
-		});
-	}
+                    console.error('[AVIF-ADMIN] Error on ID ' + fileId, err);
+                    failed.push(`ID ${fileId}: AJAX error`);
+                })
+                .finally(() => {
+                    index++;
+                    const percent = Math.round((index / files.length) * 100);
+                    progressBar.style.width = `${percent}%`;
+
+                    generateResultsDiv.innerHTML = `
+                        <p>Processed ${index} of ${files.length}...</p>
+                        <ul style="margin-left:1em">${success.join('')}</ul>
+                        ${failed.length > 0 ? `<h3>❌ Failed</h3><ul style="color:red">${failed.map(msg => `<li>${msg}</li>`).join('')}</ul>` : ''}
+                    `;
+
+                    setTimeout(processNext, 100);
+                });
+            }
+
+            processNext();
+        });
+    }
+
 });

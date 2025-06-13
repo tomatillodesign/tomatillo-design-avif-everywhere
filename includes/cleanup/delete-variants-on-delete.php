@@ -16,9 +16,9 @@ function tomatillo_delete_generated_variants( $post_id ) {
 			continue;
 		}
 
-		// Build full file path
-		$upload_dir = wp_upload_dir();
-		$file_path = $upload_dir['basedir'] . $parsed['path'];
+		// Remove /wp-content/uploads from path
+		$relative_path = str_replace( wp_upload_dir()['baseurl'], '', $url );
+		$file_path = wp_upload_dir()['basedir'] . $relative_path;
 
 		if ( file_exists( $file_path ) ) {
 			unlink( $file_path );

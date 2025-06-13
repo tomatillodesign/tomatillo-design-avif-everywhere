@@ -95,3 +95,32 @@ function tomatillo_ajax_generate_avif_batch() {
 
 	wp_send_json_success( $results );
 }
+
+
+add_action( 'wp_ajax_tomatillo_generate_avif_single', 'tomatillo_ajax_generate_avif_single' );
+function tomatillo_ajax_generate_avif_single() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_send_json_error( 'Unauthorized' );
+	}
+
+	$attachment_id = intval( $_POST['file'] ?? 0 );
+	if ( ! $attachment_id ) {
+		wp_send_json_error( 'Missing attachment ID' );
+	}
+
+	require_once TOMATILLO_AVIF_DIR . 'includes/core-generation.php';
+	require_once TOMATILLO_AVIF_DIR . 'includes/meta-store.php';
+
+	$result = tomatillo_generate_avif_for_attachment( $attachment_id );
+
+	if ( $result && ! empty( $result['filename'] ) ) {
+		wp_send_json_success([
+			'success' => [ $result ],
+			'failed'  => [],
+		]);
+	} else {
+		wp_send_json_error([
+			'failed' => [ "#$attachment_id failed" ],
+		]);
+	}
+}

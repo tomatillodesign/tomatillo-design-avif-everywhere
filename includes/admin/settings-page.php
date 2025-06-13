@@ -25,6 +25,13 @@ function tomatillo_avif_render_settings_page() {
 	// Output Scan UI
 	tomatillo_avif_render_scan_ui();
 
+    echo '<div id="tomatillo-progress-wrapper" style="margin-top: 10px; display: none;">
+            <div id="tomatillo-spinner" class="tomatillo-spinner" role="status" aria-label="Loading…"></div>
+            <div style="background: #777; border-radius: 4px; overflow: hidden; height: 12px; width: 100%; max-width: 400px;">
+                <div id="tomatillo-progress-bar" style="height: 100%; background: #4caf50; width: 0%;"></div>
+            </div>
+        </div>';
+
     echo '<hr>';
     echo '<form method="post" action="options.php">';
     settings_fields( 'tomatillo_avif_settings_group' );
@@ -36,6 +43,43 @@ function tomatillo_avif_render_settings_page() {
 	tomatillo_render_avif_server_diagnostics();
 
 	echo '</div>';
+
+    ?>
+
+    <style>
+
+        .tomatillo-avif-settings-page ul {
+            margin-left: 1rem !important;
+            list-style: disc !important;
+        }
+
+        .tomatillo-avif-settings-page ul.clb-avif-reporting-list {
+            list-style: none !important;
+        }
+
+        .clb-avif-reporting-item {
+            padding: 1rem;
+            border: 1px solid #ddd;
+            max-width: 600px;
+        }
+
+        .tomatillo-spinner {
+            width: 32px;
+            height: 32px;
+            border: 4px solid #ccc;
+            border-top-color: #4caf50;
+            border-radius: 50%;
+            animation: tomatillo-spin 3s linear infinite;
+            margin: 12px 0;
+        }
+
+        @keyframes tomatillo-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+
+<?php
 }
 
 
