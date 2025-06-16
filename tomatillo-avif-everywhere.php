@@ -182,3 +182,41 @@ function tomatillo_avif_on_deactivate() {
 		delete_user_meta( $user_id, 'tomatillo_avif_dismissed_notice' );
 	}
 }
+
+
+
+// Editing Improvements
+add_filter( 'image_downsize', 'tomatillo_editor_force_full_size', 10, 3 );
+function tomatillo_editor_force_full_size( $out, $id, $size ) {
+	if ( is_admin() && $size !== 'full' ) {
+		$full = wp_get_attachment_image_src( $id, 'full' );
+		if ( $full ) {
+			return $full;
+		}
+	}
+	return false;
+}
+
+add_action( 'enqueue_block_editor_assets', function() {
+	wp_enqueue_script(
+		'tomatillo-editor-cleanup',
+		plugin_dir_url( __FILE__ ) . 'assets/js/editor-cleanup.js',
+		[ 'wp-dom-ready', 'wp-edit-post' ],
+		'1.0',
+		true
+	);
+});
+
+add_filter( 'render_block', function( $block_content, $block ) {
+	if ( $block['blockName'] === 'core/image' && ! empty( $block['attrs']['id'] ) ) {
+		$attachment_id = $block['attrs']['id'];
+		$full = wp_get_attachment_image_src( $attachment_id, 'full' );
+		if ( $full ) {
+			$pattern = '#<img\\s[^>]*src=[\"\']([^\"\']+)[\"\'][^>]*>#i';
+			$block_content = preg_replace_callback( $pattern, function( $matches ) use ( $full ) {
+				return str_replace( $matches[1], esc_url( $full[0] ), $matches[0] );
+			}, $block_content );
+		}
+	}
+	return $block_content;
+}, 10, 2 );
