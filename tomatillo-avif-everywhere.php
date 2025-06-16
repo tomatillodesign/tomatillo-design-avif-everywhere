@@ -3,7 +3,7 @@
  * Plugin Name: Tomatillo Design AVIF Everywhere
  * Plugin URI:  https://www.tomatillodesign.com/
  * Description: Automatically create AVIF copies of uploads, serve AVIF on front-end and admin where possible. Full library retro-conversion available.
- * Version:     1.2
+ * Version:     1.2.1
  * Author:      Tomatillo Design
  * Author URI:  https://www.tomatillodesign.com/
  * License:     GPL2
@@ -118,3 +118,67 @@ Are you sure you want to deactivate this plugin?`;
 	</script>
 	<?php
 });
+
+
+
+add_action( 'admin_notices', 'tomatillo_avif_activation_notice' );
+function tomatillo_avif_activation_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) return;
+
+	$user_id = get_current_user_id();
+	if ( get_user_meta( $user_id, 'tomatillo_avif_dismissed_notice', true ) ) return;
+
+	$settings_url = admin_url( 'options-general.php?page=tomatillo-avif-settings' );
+	?>
+	<div class="notice notice-warning is-dismissible tomatillo-avif-activation-notice">
+		<p><strong>AVIF Everywhere is now activated.</strong></p>
+		<p>Please <a href="<?php echo esc_url( $settings_url ); ?>">review the plugin settings</a> and create a full backup of your site before generating AVIF/WebP files. This plugin will modify your <code>/wp-content/uploads/</code> directory by adding new image formats.</p>
+	</div>
+	<?php
+}
+add_action( 'admin_footer', 'tomatillo_avif_dismiss_script' );
+function tomatillo_avif_dismiss_script() {
+	if ( ! current_user_can( 'manage_options' ) ) return;
+	?>
+	<script>
+		document.addEventListener('DOMContentLoaded', function () {
+			const notice = document.querySelector('.tomatillo-avif-activation-notice');
+			if (notice) {
+				notice.addEventListener('click', function (e) {
+					if (e.target.classList.contains('notice-dismiss')) {
+						fetch(ajaxurl, {
+							method: 'POST',
+							credentials: 'same-origin',
+							headers: {
+								'Content-Type': 'application/x-www-form-urlencoded'
+							},
+							body: 'action=tomatillo_dismiss_notice&_ajax_nonce=' + 
+								encodeURIComponent('<?php echo wp_create_nonce('tomatillo_dismiss'); ?>')
+						});
+					}
+				});
+			}
+		});
+	</script>
+	<?php
+}
+add_action( 'wp_ajax_tomatillo_dismiss_notice', 'tomatillo_dismiss_notice_callback' );
+function tomatillo_dismiss_notice_callback() {
+	check_ajax_referer( 'tomatillo_dismiss' );
+
+	$user_id = get_current_user_id();
+	if ( $user_id ) {
+		update_user_meta( $user_id, 'tomatillo_avif_dismissed_notice', true );
+		wp_send_json_success();
+	}
+	wp_send_json_error();
+}
+
+register_deactivation_hook( __FILE__, 'tomatillo_avif_on_deactivate' );
+function tomatillo_avif_on_deactivate() {
+	// Optional: Loop through ALL users, or just current
+	if ( is_user_logged_in() ) {
+		$user_id = get_current_user_id();
+		delete_user_meta( $user_id, 'tomatillo_avif_dismissed_notice' );
+	}
+}

@@ -41,6 +41,7 @@ function tomatillo_avif_render_settings_page() {
 
 	// Output diagnostics
 	tomatillo_render_avif_server_diagnostics();
+	tomatillo_avif_render_plugin_info_panel(); // This new panel
 
 	echo '</div>';
 
@@ -59,7 +60,8 @@ function tomatillo_avif_render_settings_page() {
 
         .clb-avif-reporting-item {
             padding: 1rem;
-            border: 1px solid #ddd;
+            border: none;
+			background: #fff;
             max-width: 600px;
         }
 
@@ -146,7 +148,19 @@ function tomatillo_avif_render_scan_ui() {
 				Scan for Missing AVIF/WebP Files
 			</button>
 		</form>
-		<div id="tomatillo-avif-scan-results" style="margin-top: 1em;"></div>
+
+		<div id="tomatillo-avif-generate-results-wrapper" style="display:none;max-height:600px; overflow-y:auto; position:relative; border:1px solid #ccc; padding:1em; margin-top:1em;">
+			<div id="tomatillo-progress-wrapper" style="display: none; position:sticky; top:0; background:transparent; padding-bottom:0.5em; z-index:10; max-width: 600px;">
+				<div id="tomatillo-spinner" class="tomatillo-spinner" role="status" aria-label="Loading…"></div>
+				<div style="background: #777; border-radius: 4px; overflow: hidden; height: 12px; width: 100%;">
+					<div id="tomatillo-progress-bar" style="height: 100%; background: limegreen; width: 0%; transition: width 0.3s ease;"></div>
+				</div>
+			</div>
+			<div id="tomatillo-avif-scan-results"></div> <!-- ✅ renamed -->
+			<div id="tomatillo-bandwidth-scoreboard" style="display: none;margin-top: 0.5em; font-weight: bold; color: #555;">💾 Bandwidth Saved: 0.00 MB (0%)</div>
+			<div id="tomatillo-avif-generate-results"></div>
+		</div>
+
 	</div>
 
     <div id="tomatillo-avif-generate-wrapper" style="margin-top:2em;">
@@ -265,3 +279,37 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 
 
 
+function tomatillo_avif_render_plugin_info_panel() {
+	?>
+	<div class="postbox" style="margin-top: 2em;">
+		<h2 style="margin-left: 1em;"><span>Plugin Overview & Deactivation Notes</span></h2>
+		<div class="inside">
+			<h3>✅ What This Plugin Does</h3>
+			<p><strong>AVIF Everywhere</strong> enhances image delivery across your WordPress site by generating modern image formats (<code>.avif</code> and optionally <code>.webp</code>) from uploaded JPEG/PNG files. It improves loading times and bandwidth usage without affecting your original media.</p>
+
+			<ul>
+				<li>🖼 <strong>Automatic conversion</strong> of new image uploads into AVIF and WebP formats</li>
+				<li>🧰 <strong>Admin tools</strong> to scan existing uploads and batch-generate modern formats</li>
+				<li>⚡️ <strong>Performance logic</strong> that tests multiple compression levels and only keeps smaller AVIFs</li>
+				<li>📊 <strong>Diagnostic panel</strong> to check AVIF support, GD/Imagick versions, and server setup</li>
+				<li>🧠 <strong>Metadata-driven</strong> — uses custom fields to track AVIF/WebP URLs on each media item</li>
+				<li>👁 <strong>Enhanced Media Library</strong> views that preview AVIF versions when available</li>
+				<li>💻 <strong>Frontend JS</strong> that swaps in AVIF with graceful fallbacks when supported</li>
+			</ul>
+
+			<h3>⚠️ What Happens When You Disable or Delete</h3>
+			<p>Disabling or removing the plugin will:</p>
+			<ul>
+				<li>⛔️ Stop all AVIF/WebP generation for new uploads</li>
+				<li>🖼 Revert Media Library grid and modals back to original JPEG/PNG previews</li>
+				<li>🚫 Disable the scan and batch generation tools</li>
+				<li>🧩 Remove frontend AVIF swapping unless you’ve added custom replacements</li>
+			</ul>
+
+			<p>However, <strong>any previously generated <code>.avif</code> and <code>.webp</code> files remain untouched</strong> on your server inside <code>/wp-content/uploads/</code>. These are safe to leave in place and continue serving manually or via other plugins if needed.</p>
+
+			<p><strong>Important:</strong> This plugin does <em>not</em> modify image URLs in post content or database entries. It dynamically enhances the admin and frontend image delivery — meaning there are no long-term consequences or cleanup requirements unless you choose to remove the AVIF files yourself.</p>
+		</div>
+	</div>
+	<?php
+}
