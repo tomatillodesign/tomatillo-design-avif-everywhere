@@ -295,8 +295,7 @@ function tomatillo_avif_render_plugin_info_panel() {
 				<li>⚡️ <strong>Performance logic</strong> that tests multiple compression levels and only keeps smaller AVIFs</li>
 				<li>📊 <strong>Diagnostic panel</strong> to check AVIF support, GD/Imagick versions, and server setup</li>
 				<li>🧠 <strong>Metadata-driven</strong> — uses custom fields to track AVIF/WebP URLs on each media item</li>
-				<li>👁 <strong>Enhanced Media Library</strong> views that preview AVIF versions when available</li>
-				<li>💻 <strong>Frontend JS</strong> that swaps in AVIF with graceful fallbacks when supported</li>
+				<li>👁 <strong>Enhanced Editor</strong> views that preview full size versions when available (should prevent blurry/low-res images in editor)</li>
 			</ul>
 
 			<h3>⚠️ What Happens When You Disable or Delete</h3>
