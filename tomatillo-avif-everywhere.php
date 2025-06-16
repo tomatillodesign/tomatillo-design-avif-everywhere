@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+require_once __DIR__ . '/includes/libs/load-action-scheduler.php';
+
 // --- Plugin Constants ---
 define( 'TOMATILLO_AVIF_VERSION', '1.2.0' );
 define( 'TOMATILLO_AVIF_FILE', __FILE__ );

@@ -140,9 +140,11 @@ function tomatillo_avif_max_size_mb_field_render() {
 
 function tomatillo_avif_render_scan_ui() {
 	?>
+
 	<div class="tomatillo-avif-scan-wrapper" style="margin-bottom: 2em;">
 		<h2>📦 Scan Media Library</h2>
 		<p>This will check for any Media Library images that are missing AVIF or WebP versions.</p>
+
 		<form method="post" id="tomatillo-scan-avif-form">
 			<button type="button" class="button button-secondary" id="tomatillo-scan-avif-button">
 				Scan for Missing AVIF/WebP Files
@@ -313,3 +315,6 @@ function tomatillo_avif_render_plugin_info_panel() {
 	</div>
 	<?php
 }
+
+
+
