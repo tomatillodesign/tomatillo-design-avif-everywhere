@@ -3,7 +3,7 @@
  * Plugin Name: Tomatillo Design AVIF Everywhere
  * Plugin URI:  https://www.tomatillodesign.com/
  * Description: Automatically create AVIF copies of uploads, serve AVIF on front-end and admin where possible. Full library retro-conversion available.
- * Version:     1.2.1
+ * Version:     1.2.2
  * Author:      Tomatillo Design
  * Author URI:  https://www.tomatillodesign.com/
  * License:     GPL2
@@ -222,3 +222,76 @@ add_filter( 'render_block', function( $block_content, $block ) {
 	}
 	return $block_content;
 }, 10, 2 );
+
+
+
+
+
+
+function tomatillo_avif_register_rest_meta() {
+	register_meta( 'attachment', '_avif_url', [
+		'type'         => 'string',
+		'description'  => 'AVIF version of the image',
+		'single'       => true,
+		'show_in_rest' => true,
+		'auth_callback' => function() {
+			return current_user_can( 'upload_files' );
+		},
+	] );
+
+	register_meta( 'attachment', '_webp_url', [
+		'type'         => 'string',
+		'description'  => 'WebP version of the image',
+		'single'       => true,
+		'show_in_rest' => true,
+		'auth_callback' => function() {
+			return current_user_can( 'upload_files' );
+		},
+	] );
+
+	register_meta( 'attachment', '_webp_size_kb', [
+		'type'         => 'number',
+		'description'  => 'WebP file size in kilobytes',
+		'single'       => true,
+		'show_in_rest' => true,
+		'auth_callback' => function() {
+			return current_user_can( 'upload_files' );
+		},
+	] );
+
+	register_meta( 'attachment', '_avif_size_kb', [
+		'type'         => 'number',
+		'description'  => 'AVIF file size in kilobytes',
+		'single'       => true,
+		'show_in_rest' => true,
+		'auth_callback' => function() {
+			return current_user_can( 'upload_files' );
+		},
+	] );
+}
+add_action( 'rest_api_init', 'tomatillo_avif_register_rest_meta' );
+
+
+// Flat REST exposure for _fields param support
+add_action( 'rest_api_init', function() {
+	register_rest_field( 'attachment', '_avif_url', [
+		'get_callback' => fn( $obj ) => get_post_meta( $obj['id'], '_avif_url', true ),
+		'schema' => [ 'type' => 'string', 'context' => [ 'view' ] ],
+	]);
+
+	register_rest_field( 'attachment', '_webp_url', [
+		'get_callback' => fn( $obj ) => get_post_meta( $obj['id'], '_webp_url', true ),
+		'schema' => [ 'type' => 'string', 'context' => [ 'view' ] ],
+	]);
+
+	register_rest_field( 'attachment', '_webp_size_kb', [
+		'get_callback' => fn( $obj ) => (float) get_post_meta( $obj['id'], '_webp_size_kb', true ),
+		'schema' => [ 'type' => 'number', 'context' => [ 'view' ] ],
+	]);
+
+	register_rest_field( 'attachment', '_avif_size_kb', [
+		'get_callback' => fn( $obj ) => (float) get_post_meta( $obj['id'], '_avif_size_kb', true ),
+		'schema' => [ 'type' => 'number', 'context' => [ 'view' ] ],
+	]);
+});
+
